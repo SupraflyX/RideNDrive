@@ -1,0 +1,38 @@
+# === Build Output ===
+target/
+
+# === IDE Files ===
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# === Node Modules ===
+node_modules/
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Environment / Secrets ===
+.env
+*.env
+
+# === Python Cache ===
+__pycache__/
+*.pyc
+
+# === Generated PDFs (keep source .md) ===
+REPORT_v*.pdf
+REPORT_v*_extracted.txt
+
+# === Python scripts (build tools, not part of the app) ===
+convert.py
+md_to_pdf.py
+md_to_pdf_pisa.py
+revert.py
+
+# === Logs ===
+*.log
