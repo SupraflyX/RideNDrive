@@ -39,15 +39,19 @@ function navigateTo(sectionId) {
 
 function updateDashboardVisibility() {
     const isPassenger = (currentUser.role === 'PASSENGER');
-    
+
     document.getElementById('nav-passenger').style.display = isPassenger ? 'flex' : 'none';
     document.getElementById('nav-driver').style.display = !isPassenger ? 'flex' : 'none';
-    
+
+    // Real-app landing: passengers land on search, drivers on their trips
     if (isPassenger) {
-        navigateTo('view-passenger-home');
+        navigateTo('view-search-rides');
     } else {
-        navigateTo('view-driver-home');
+        navigateTo('view-my-trips');
     }
+
+    // FR-13: begin polling the notification inbox for the signed-in user
+    startNotificationPolling();
 }
 
 // Add click listeners to sidebar navigation
@@ -58,6 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (target) {
                 e.preventDefault();
                 navigateTo(target);
+                toggleSidebar(false); // auto-close on mobile
             }
         });
     });
@@ -79,7 +84,33 @@ document.addEventListener("DOMContentLoaded", () => {
     setupPlannerSearchListener();
     setupEditModalListeners();
     setupProfileListeners();
+    loadGoogleMapsSdk(); // key served from /api/config (env var), never hardcoded
 });
+
+/**
+ * Dynamically loads the Google Maps JS SDK using the key exposed by the
+ * backend (/api/config, sourced from the GOOGLE_MAPS_API_KEY environment
+ * variable). Without a key, the SPA's built-in fallback route visualization
+ * is used — no functionality is lost.
+ */
+async function loadGoogleMapsSdk() {
+    try {
+        const res = await fetch("/api/config");
+        if (!res.ok) return;
+        const cfg = await res.json();
+        if (!cfg.mapsApiKey) {
+            console.info("[Maps] No API key configured — using fallback route visualization.");
+            return;
+        }
+        const s = document.createElement("script");
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(cfg.mapsApiKey)}`;
+        s.async = true;
+        s.onerror = () => { googleMapsAuthFailed = true; };
+        document.head.appendChild(s);
+    } catch (e) {
+        console.error("[Maps] Failed to fetch runtime config:", e);
+    }
+}
 
 // Setup Tab Navigation
 function setupTabNavigation() {
@@ -112,6 +143,7 @@ function checkAuthSession() {
             appWrapper.style.display = "flex";
             updateSessionDisplay();
             loadAllData();
+            startNotificationPolling(); // FR-13
         } catch (e) {
             console.error("Failed to parse user session", e);
             localStorage.removeItem("routeshare_user");
@@ -123,6 +155,7 @@ function checkAuthSession() {
 }
 
 function showAuthScreens() {
+    stopNotificationPolling(); // FR-13: stop inbox polling on logout
     currentUser = null;
     document.body.className = "";
     const authContainer = document.getElementById("auth-container");
@@ -243,7 +276,8 @@ function setupAuthListeners() {
         const password = document.getElementById("login-password").value;
 
         if (!name || !password) return;
-
+        const loginBtn = e.target.querySelector('button[type="submit"]');
+        setBtnLoading(loginBtn, true);
         try {
             const res = await fetch("/api/auth/login", {
                 method: "POST",
@@ -267,11 +301,13 @@ function setupAuthListeners() {
                 logConsole(`[Session] Authenticated as ${currentUser.name} (${currentUser.role})`, "text-success");
                 await loadAllData();
             } else {
-                alert(data.error || "Authentication failed.");
+                showToast(data.error || "Authentication failed.");
             }
         } catch (err) {
             console.error("Auth login error", err);
-            alert("Network error authenticating user: " + err.message + "\nAre you viewing this file via file://? Please use http://localhost:8080");
+            showToast("Network error authenticating user: " + err.message + "\nAre you viewing this file via file://? Please use http://localhost:8080");
+        } finally {
+            setBtnLoading(loginBtn, false);
         }
     });
 
@@ -293,7 +329,7 @@ function setupAuthListeners() {
             const data = await res.json();
 
             if (res.ok) {
-                alert("Passenger registration successful! You can now log in.");
+                showToast("Passenger registration successful! You can now log in.");
                 document.getElementById("register-p-name").value = "";
                 document.getElementById("register-p-password").value = "";
                 // Back to login
@@ -301,11 +337,11 @@ function setupAuthListeners() {
                 passengerRegisterScreen.style.display = "none";
                 authTitleText.innerText = "Sign In to DriveNRide";
             } else {
-                alert(data.error || "Registration failed.");
+                showToast(data.error || "Registration failed.");
             }
         } catch (err) {
             console.error("Registration error", err);
-            alert("Network error during registration.");
+            showToast("Network error during registration.");
         }
     });
 
@@ -330,7 +366,7 @@ function setupAuthListeners() {
             const data = await res.json();
 
             if (res.ok) {
-                alert("Driver registration successful! You can now log in.");
+                showToast("Driver registration successful! You can now log in.");
                 document.getElementById("register-d-name").value = "";
                 document.getElementById("register-d-password").value = "";
                 document.getElementById("register-d-make").value = "";
@@ -341,11 +377,11 @@ function setupAuthListeners() {
                 driverRegisterScreen.style.display = "none";
                 authTitleText.innerText = "Sign In to DriveNRide";
             } else {
-                alert(data.error || "Registration failed.");
+                showToast(data.error || "Registration failed.");
             }
         } catch (err) {
             console.error("Registration error", err);
-            alert("Network error during registration.");
+            showToast("Network error during registration.");
         }
     });
 }
@@ -364,7 +400,7 @@ function setupFormListeners() {
         const maxDetourMinutes = parseInt(document.getElementById("trip-max-detour").value);
 
         if (new Date(departureTime) < new Date()) {
-            alert("Cannot offer a trip in the past.");
+            showToast("Cannot offer a trip in the past.");
             return;
         }
 
@@ -389,7 +425,7 @@ function setupFormListeners() {
                 await loadAllData();
             } else {
                 const errBody = await res.json();
-                alert(errBody.error || "Failed to post trip offer.");
+                showToast(errBody.error || "Failed to post trip offer.");
             }
         } catch (err) {
             console.error("Error creating trip", err);
@@ -407,7 +443,7 @@ function setupFormListeners() {
         const end = document.getElementById("ride-window-end").value;
 
         if (new Date(start) < new Date() || new Date(end) < new Date()) {
-            alert("Cannot request a ride in the past.");
+            showToast("Cannot request a ride in the past.");
             return;
         }
 
@@ -432,7 +468,7 @@ function setupFormListeners() {
                 await loadAllData();
             } else {
                 const errBody = await res.json();
-                alert(errBody.error || "Failed to submit ride request.");
+                showToast(errBody.error || "Failed to submit ride request.");
             }
         } catch (err) {
             console.error("Error creating ride request", err);
@@ -470,7 +506,7 @@ function setupFormListeners() {
                     await loadAllData();
                 } else {
                     const errBody = await res.json();
-                    alert(errBody.error || "Failed to submit rating review.");
+                    showToast(errBody.error || "Failed to submit rating review.");
                 }
             } catch (err) {
                 console.error("Error creating rating", err);
@@ -509,7 +545,7 @@ function setupFormListeners() {
                     await loadAllData();
                 } else {
                     const errBody = await res.json();
-                    alert(errBody.error || "Failed to submit rating review.");
+                    showToast(errBody.error || "Failed to submit rating review.");
                 }
             } catch (err) {
                 console.error("Error creating rating", err);
@@ -526,7 +562,13 @@ function setupPlannerSearchListener() {
 
     searchForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        await runPlannerSearch();
+        const btn = searchForm.querySelector('button[type="submit"]');
+        setBtnLoading(btn, true);
+        try {
+            await runPlannerSearch();
+        } finally {
+            setBtnLoading(btn, false);
+        }
     });
 }
 
@@ -556,7 +598,6 @@ async function loadAllData() {
         renderDriverTripsTable();
         renderPassengerRidesTable();
         renderDriverVehicleInfo();
-        renderDashboards(); // New dashboard logic
         
         populateDropdowns();
     } catch (err) {
@@ -564,185 +605,117 @@ async function loadAllData() {
     }
 }
 
-// ---------------------------------------------
-// UI DASHBOARD ENHANCEMENTS
-// ---------------------------------------------
-function renderDashboards() {
-    if (!currentUser) return;
-    const now = new Date();
-
-    if (currentUser.role === 'PASSENGER') {
-        const container = document.getElementById("passenger-upcoming-trips");
-        if (!container) return;
-        
-        // Find upcoming booked trips where the passenger is in the trip's passenger list
-        const upcomingBookings = trips.filter(t => 
-            t.passengers && 
-            t.passengers.some(req => req.passenger && req.passenger.id === currentUser.id) &&
-            new Date(t.departureTime) >= now
-        );
-
-        if (upcomingBookings.length === 0) {
-            container.innerHTML = `<div class="info-text">You have no upcoming booked trips. Time to find a ride!</div>`;
-            return;
-        }
-
-        let html = '';
-        upcomingBookings.forEach(t => {
-            html += `
-                <div class="dashboard-card">
-                    <h4>${t.origin} → ${t.destination} <span class="stripe-badge success">Stripe Verified: Paid</span></h4>
-                    <p>📅 ${formatDateTime(t.departureTime)}</p>
-                    <div class="dashboard-stats">
-                        <div class="dashboard-stat-item">
-                            <span>Driver</span>
-                            <strong>${t.driver ? t.driver.name : 'Unknown'}</strong>
-                        </div>
-                        <div class="dashboard-stat-item">
-                            <span>Status</span>
-                            <strong>Confirmed</strong>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
-    } else if (currentUser.role === 'DRIVER') {
-        const container = document.getElementById("driver-upcoming-trips");
-        if (!container) return;
-
-        // Find upcoming published trips
-        const upcomingTrips = trips.filter(t => 
-            t.driver && 
-            t.driver.id === currentUser.id && 
-            new Date(t.departureTime) >= now
-        );
-
-        if (upcomingTrips.length === 0) {
-            container.innerHTML = `<div class="info-text">You have no upcoming trips. Time to offer a ride!</div>`;
-            return;
-        }
-
-        let html = '';
-        upcomingTrips.forEach(t => {
-            let paxCount = t.passengers ? t.passengers.length : 0;
-            // Note: Pricing is dynamic, but we can simulate a Stripe badge for booked passengers
-            let stripeHtml = paxCount > 0 ? `<span class="stripe-badge success">Stripe: ${paxCount} Paid</span>` : `<span class="stripe-badge pending">Stripe: 0 Bookings</span>`;
-            
-            html += `
-                <div class="dashboard-card">
-                    <h4>${t.origin} → ${t.destination} ${stripeHtml}</h4>
-                    <p>📅 ${formatDateTime(t.departureTime)}</p>
-                    <div class="dashboard-stats">
-                        <div class="dashboard-stat-item">
-                            <span>Passengers</span>
-                            <strong>${paxCount} / ${t.maxStops} limit</strong>
-                        </div>
-                        <div class="dashboard-stat-item">
-                            <span>Detour</span>
-                            <strong>Max ${t.maxDetourMinutes} min</strong>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        container.innerHTML = html;
-    }
-}
-
-// Render Driver-Specific Trips
 function renderDriverTripsTable() {
-    const tbody = document.querySelector("#driver-trips-table tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    if (!currentUser) return;
-    
+    const list = document.getElementById("driver-trips-list");
+    if (!list || !currentUser) return;
+
     const myTrips = trips.filter(t => t.driver && t.driver.id === currentUser.id);
     if (myTrips.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align: center; padding: 15px;">No active shared trips posted.</td></tr>`;
+        list.innerHTML = `<div class="info-text">You haven't published any trips yet. Offer one — your seats are worth sharing.</div>`;
         return;
     }
-    
-    myTrips.forEach(t => {
-        let passengerInfo = "None";
-        if (t.passengers && t.passengers.length > 0) {
-            passengerInfo = t.passengers.map(p => p.passenger ? p.passenger.name : 'Unknown').join(", ");
-        }
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${t.id}</td>
-            <td><strong>${t.origin} → ${t.destination}</strong></td>
-            <td>${formatDateTime(t.departureTime)}</td>
-            <td>Max Stops: ${t.maxStops} | Max Extra Time: ${t.maxDetourMinutes} mins<br><small style="color:var(--text-color);"><strong>Passengers:</strong> ${passengerInfo}</small></td>
-            <td>
-                <button class="btn btn-secondary btn-sm edit-trip-btn" data-id="${t.id}" style="padding: 4px 8px; font-size: 0.78rem; margin-right: 6px;">✏️ Edit</button>
-                <button class="btn btn-accent btn-sm delete-trip-btn" data-id="${t.id}" style="padding: 4px 8px; font-size: 0.78rem; background-color: var(--accent-error); color: white;">❌ Cancel</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+    list.innerHTML = myTrips.map(t => {
+        const pax = t.passengers || [];
+        const hasConfirmed = pax.some(p => (p.status || "PENDING") === "CONFIRMED");
+        const pending = pax.filter(p => (p.status || "PENDING") === "PENDING").length;
 
-    // Attach listeners
-    tbody.querySelectorAll(".edit-trip-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const tripId = parseInt(e.currentTarget.getAttribute("data-id"));
-            openEditTripModal(tripId);
-        });
-    });
+        const paxRows = pax.length === 0
+            ? `<div class="ride-passenger-row text-muted">No bookings yet.</div>`
+            : pax.map(p => {
+                const pName = p.passenger ? p.passenger.name : "Unknown";
+                const pStatus = p.status || "PENDING";
+                const controls = pStatus === "PENDING"
+                    ? ` <button class="btn btn-sm btn-primary confirm-booking-btn" data-id="${p.id}">Confirm</button>
+                        <button class="btn btn-sm btn-danger reject-booking-btn" data-id="${p.id}">Decline</button>`
+                    : "";
+                return `<div class="ride-passenger-row">
+                            <span class="pax-avatar">${pName.charAt(0).toUpperCase()}</span>
+                            <span>${pName}</span>
+                            ${bookingStatusBadge(pStatus)}
+                            ${controls}
+                        </div>`;
+            }).join("");
 
-    tbody.querySelectorAll(".delete-trip-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const tripId = parseInt(e.currentTarget.getAttribute("data-id"));
-            deleteTrip(tripId);
-        });
-    });
+        return `
+        <div class="ride-card">
+            <div class="ride-card-top">
+                <div>
+                    <div class="ride-route">${t.origin} <span class="route-arrow">→</span> ${t.destination}</div>
+                    <div class="ride-meta">
+                        <span>🕑 ${formatDateTime(t.departureTime)}</span>
+                        <span>⛳ max ${t.maxStops} pickups</span>
+                        <span>↺ ${t.maxDetourMinutes} min detour budget</span>
+                        ${pending > 0 ? `<span class="text-warning">● ${pending} awaiting your decision</span>` : ""}
+                    </div>
+                </div>
+                <div class="ride-card-actions">
+                    ${hasConfirmed ? `<button class="btn btn-sm btn-primary complete-trip-btn" data-id="${t.id}">🏁 Complete</button>` : ""}
+                    <button class="btn btn-sm btn-secondary edit-trip-btn" data-id="${t.id}">Edit</button>
+                    <button class="btn btn-sm btn-danger delete-trip-btn" data-id="${t.id}">Cancel</button>
+                </div>
+            </div>
+            <div class="ride-passengers">${paxRows}</div>
+        </div>`;
+    }).join("");
+
+    // listeners
+    list.querySelectorAll(".edit-trip-btn").forEach(btn =>
+        btn.addEventListener("click", e => openEditTripModal(parseInt(e.currentTarget.getAttribute("data-id")))));
+    list.querySelectorAll(".delete-trip-btn").forEach(btn =>
+        btn.addEventListener("click", e => deleteTrip(parseInt(e.currentTarget.getAttribute("data-id")))));
+    list.querySelectorAll(".confirm-booking-btn").forEach(btn =>
+        btn.addEventListener("click", e => bookingTransition(parseInt(e.currentTarget.getAttribute("data-id")), "confirm")));
+    list.querySelectorAll(".reject-booking-btn").forEach(btn =>
+        btn.addEventListener("click", e => bookingTransition(parseInt(e.currentTarget.getAttribute("data-id")), "reject")));
+    list.querySelectorAll(".complete-trip-btn").forEach(btn =>
+        btn.addEventListener("click", e => completeTripLifecycle(parseInt(e.currentTarget.getAttribute("data-id")))));
 }
 
-// Render Passenger-Specific Booked Trips and Requests
 function renderPassengerRidesTable() {
-    const tbody = document.querySelector("#passenger-rides-table tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    if (!currentUser) return;
-    
+    const list = document.getElementById("passenger-rides-list");
+    if (!list || !currentUser) return;
+
     const myRides = rides.filter(r => r.passenger && r.passenger.id === currentUser.id);
     if (myRides.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-muted" style="text-align: center; padding: 15px;">No bookings or active ride requests.</td></tr>`;
+        list.innerHTML = `<div class="info-text">No rides yet. Search for one, or post a request so drivers can find you.</div>`;
         return;
     }
-    
-    myRides.forEach(r => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${r.id}</td>
-            <td><strong>${r.origin} → ${r.destination}</strong></td>
-            <td>${formatDateTime(r.pickupTimeWindowStart)} - ${formatDateTime(r.pickupTimeWindowEnd)}</td>
-            <td>
-                <button class="btn btn-secondary btn-sm edit-ride-btn" data-id="${r.id}" style="padding: 4px 8px; font-size: 0.78rem; margin-right: 6px;">✏️ Edit</button>
-                <button class="btn btn-accent btn-sm delete-ride-btn" data-id="${r.id}" style="padding: 4px 8px; font-size: 0.78rem; background-color: var(--accent-error); color: white;">❌ Cancel</button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
 
-    // Attach listeners
-    tbody.querySelectorAll(".edit-ride-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const rideId = parseInt(e.currentTarget.getAttribute("data-id"));
-            openEditRideModal(rideId);
-        });
-    });
+    list.innerHTML = myRides.map(r => {
+        const status = r.status || "PENDING";
+        const isActive = (status === "PENDING" || status === "CONFIRMED");
+        const actions = isActive
+            ? `<button class="btn btn-sm btn-secondary edit-ride-btn" data-id="${r.id}">Edit</button>
+               <button class="btn btn-sm btn-danger withdraw-ride-btn" data-id="${r.id}">Withdraw</button>`
+            : `<button class="btn btn-sm btn-danger delete-ride-btn" data-id="${r.id}">Remove</button>`;
+        return `
+        <div class="ride-card">
+            <div class="ride-card-top">
+                <div>
+                    <div class="ride-route">${r.origin} <span class="route-arrow">→</span> ${r.destination} ${bookingStatusBadge(status)}</div>
+                    <div class="ride-meta">
+                        <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                    </div>
+                </div>
+                <div class="ride-card-actions">${actions}</div>
+            </div>
+        </div>`;
+    }).join("");
 
-    tbody.querySelectorAll(".delete-ride-btn").forEach(btn => {
-        btn.addEventListener("click", (e) => {
+    list.querySelectorAll(".withdraw-ride-btn").forEach(btn =>
+        btn.addEventListener("click", async e => {
             const rideId = parseInt(e.currentTarget.getAttribute("data-id"));
-            deleteRide(rideId);
-        });
-    });
+            if (await showConfirm("Withdraw this booking? The driver will be notified.", "Withdraw")) {
+                bookingTransition(rideId, "cancel");
+            }
+        }));
+    list.querySelectorAll(".edit-ride-btn").forEach(btn =>
+        btn.addEventListener("click", e => openEditRideModal(parseInt(e.currentTarget.getAttribute("data-id")))));
+    list.querySelectorAll(".delete-ride-btn").forEach(btn =>
+        btn.addEventListener("click", e => deleteRide(parseInt(e.currentTarget.getAttribute("data-id")))));
 }
 
-// Render directory tables
 function renderPassengersTable() {
     const tbody = document.querySelector("#passengers-table tbody");
     if (!tbody) return;
@@ -802,31 +775,42 @@ function renderTripsTable() {
 }
 
 function renderRidesTable() {
-    const tbody = document.querySelector("#rides-table tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    
+    const list = document.getElementById("open-requests-list");
+    if (!list) return;
+
     const now = new Date();
-    // A ride request is unassigned if it is not found in any trip's passengers list
     const assignedRideIds = trips.flatMap(t => t.passengers ? t.passengers.map(req => req.id) : []);
     const activeRides = rides.filter(r => !assignedRideIds.includes(r.id) && new Date(r.pickupTimeWindowStart) >= now);
-    
+
     if (activeRides.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align: center; padding: 15px;">No active passenger requests found for future dates.</td></tr>`;
+        list.innerHTML = `<div class="info-text">No open passenger requests right now — check back later.</div>`;
         return;
     }
-    
-    activeRides.forEach(r => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${r.id}</td>
-            <td>${r.passenger ? r.passenger.name : "N/A"}</td>
-            <td><strong>${r.origin} → ${r.destination}</strong></td>
-            <td>${formatDateTime(r.pickupTimeWindowStart)} - ${formatDateTime(r.pickupTimeWindowEnd)}</td>
-            <td><button class="btn btn-sm btn-secondary" onclick="offerRideForRequest('${r.origin}', '${r.destination}', ${r.id}, ${r.passenger ? r.passenger.id : 'null'}, '${r.pickupTimeWindowStart}', '${r.pickupTimeWindowEnd}')">Offer Ride</button></td>
-        `;
-        tbody.appendChild(tr);
-    });
+
+    list.innerHTML = activeRides.map(r => {
+        const pName = r.passenger ? r.passenger.name : "Unknown";
+        const pid = r.passenger ? r.passenger.id : "null";
+        return `
+        <div class="ride-card">
+            <div class="ride-card-top">
+                <div>
+                    <div class="ride-route">
+                        <span class="pax-avatar">${pName.charAt(0).toUpperCase()}</span>
+                        ${pName} needs: ${r.origin} <span class="route-arrow">→</span> ${r.destination}
+                    </div>
+                    <div class="ride-meta">
+                        <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                    </div>
+                </div>
+                <div class="ride-card-actions">
+                    <button class="btn btn-sm btn-primary"
+                        onclick="offerRideForRequest('${r.origin}', '${r.destination}', ${r.id}, ${pid}, '${r.pickupTimeWindowStart}', '${r.pickupTimeWindowEnd}')">
+                        Offer Ride
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    }).join("");
 }
 
 function renderRatingsTable() {
@@ -846,56 +830,37 @@ function renderRatingsTable() {
     });
 }
 
-// Populate select selectors dropdown
-function populateDropdowns() {
-    // 1. Populate Driver Rating Passenger Select (Driver rates Passenger)
-    const driverSelect = document.getElementById("driver-rating-reviewee");
-    if (driverSelect) {
-        const previousVal = driverSelect.value;
-        driverSelect.innerHTML = '<option value="">Select Passenger...</option>';
-        
-        // Loop through all ride requests in the system
-        rides.forEach(r => {
-            if (r.passenger && r.passenger.id) {
-                if (currentUser && r.passenger.id === currentUser.id) {
-                    return;
-                }
-                const opt = `<option value="${r.passenger.id}">${r.passenger.name} (${r.origin} → ${r.destination})</option>`;
-                driverSelect.innerHTML += opt;
-            }
-        });
-        
-        if (previousVal) {
-            driverSelect.value = previousVal;
-        }
+// Populate rating dropdowns — FR-10 integrity: only counterparts from
+// COMPLETED bookings are rateable (backend: /api/bookings/rateable).
+async function populateDropdowns() {
+    if (!currentUser) return;
+
+    let rateable = [];
+    try {
+        const res = await fetch(`/api/bookings/rateable/${currentUser.id}`);
+        if (res.ok) rateable = await res.json();
+    } catch (e) {
+        console.error("Failed to load rateable counterparts:", e);
     }
 
-    // 2. Populate Passenger Rating Driver Select (Passenger rates Driver)
-    const passengerSelect = document.getElementById("passenger-rating-reviewee");
-    if (passengerSelect) {
-        const previousVal = passengerSelect.value;
-        passengerSelect.innerHTML = '<option value="">Select Driver...</option>';
-        
-        users.forEach(u => {
-            if (u.role === "DRIVER" || u.role === "driver") {
-                if (currentUser && u.id === currentUser.id) {
-                    return;
-                }
-                const driverTrips = trips.filter(t => t.driver && t.driver.id === u.id);
-                let label = `${u.name} (Driver)`;
-                if (driverTrips.length > 0) {
-                    const routes = driverTrips.map(t => `${t.origin} → ${t.destination}`).join(", ");
-                    label = `${u.name} (Driver: ${routes})`;
-                }
-                const opt = `<option value="${u.id}">${label}</option>`;
-                passengerSelect.innerHTML += opt;
-            }
-        });
-        
-        if (previousVal) {
-            passengerSelect.value = previousVal;
+    const fill = (selectId, role, placeholder, emptyHint) => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const previousVal = select.value;
+        const options = rateable.filter(u => u.role === role);
+        if (options.length === 0) {
+            select.innerHTML = `<option value="">${emptyHint}</option>`;
+            return;
         }
-    }
+        select.innerHTML = `<option value="">${placeholder}</option>` +
+            options.map(u => `<option value="${u.id}">${u.name} (⭐ ${(u.reputationScore ?? 5).toFixed(2)})</option>`).join("");
+        if (previousVal) select.value = previousVal;
+    };
+
+    fill("driver-rating-reviewee", "PASSENGER", "Select Passenger...",
+         "No rateable passengers yet — complete a trip first");
+    fill("passenger-rating-reviewee", "DRIVER", "Select Driver...",
+         "No rateable drivers yet — complete a ride first");
 }
 
 // Search matching rides using passenger's request parameters
@@ -906,7 +871,7 @@ async function runPlannerSearch() {
     const outputContainer = document.getElementById("planner-output-container");
 
     if (!currentUser) {
-        alert("You must be logged in to search rides!");
+        showToast("You must be logged in to search rides!");
         return;
     }
 
@@ -1596,7 +1561,7 @@ function showFallbackRouteVisualization(sequence) {
             </div>
             
             <p style="font-size: 0.72rem; color: var(--text-muted); text-align: center; margin: 24px 0 0 0; max-width: 440px; line-height: 1.4;">
-                ⚠️ Google Maps auth failed. Make sure **Maps JavaScript API** is enabled on Google Cloud Console under key **AIzaSy...BGmA** to view street maps.
+                ⚠️ Google Maps unavailable. Set the GOOGLE_MAPS_API_KEY environment variable (with Maps JavaScript API enabled) to view street maps — this fallback visualization works without it.
             </p>
         </div>
     `;
@@ -1704,7 +1669,7 @@ function openEditTripModal(tripId) {
 }
 
 async function deleteTrip(tripId) {
-    if (!confirm("Are you sure you want to cancel this ride offer?")) return;
+    if (!(await showConfirm("Are you sure you want to cancel this ride offer?", "Cancel Offer", "Keep"))) return;
 
     try {
         const res = await fetch(`/api/trips/${tripId}`, {
@@ -1714,7 +1679,7 @@ async function deleteTrip(tripId) {
             logConsole(`[Database] Cancelled Trip Offer ID: ${tripId}`, "text-warning");
             await loadAllData();
         } else {
-            alert("Failed to cancel trip.");
+            showToast("Failed to cancel trip.");
         }
     } catch (err) {
         console.error("Error cancelling trip", err);
@@ -1736,7 +1701,7 @@ function openEditRideModal(rideId) {
 }
 
 async function deleteRide(rideId) {
-    if (!confirm("Are you sure you want to cancel this booking/request?")) return;
+    if (!(await showConfirm("Are you sure you want to cancel this booking/request?", "Cancel It", "Keep"))) return;
 
     try {
         const res = await fetch(`/api/rides/${rideId}`, {
@@ -1746,7 +1711,7 @@ async function deleteRide(rideId) {
             logConsole(`[Database] Cancelled Ride Booking/Request ID: ${rideId}`, "text-warning");
             await loadAllData();
         } else {
-            alert("Failed to cancel booking/request.");
+            showToast("Failed to cancel booking/request.");
         }
     } catch (err) {
         console.error("Error cancelling booking/request", err);
@@ -1803,7 +1768,7 @@ function setupEditModalListeners() {
                 await loadAllData();
             } else {
                 const errorText = await res.text();
-                alert(`Failed to update trip offer.\n${errorText}`);
+                showToast(`Failed to update trip offer.\n${errorText}`);
             }
         } catch (err) {
             console.error("Error updating trip", err);
@@ -1837,7 +1802,7 @@ function setupEditModalListeners() {
                 logConsole(`[Database] Updated Ride Request ID: ${rideId}`, "text-indigo");
                 await loadAllData();
             } else {
-                alert("Failed to update ride request.");
+                showToast("Failed to update ride request.");
             }
         } catch (err) {
             console.error("Error updating ride request", err);
@@ -1868,7 +1833,7 @@ function setupProfileListeners() {
     if (btnDelete) {
         btnDelete.addEventListener("click", async () => {
             if (!currentUser) return;
-            const confirmed = confirm("Are you sure you want to delete your account? This action cannot be undone and will delete all your trips, bookings, and ratings.");
+            const confirmed = await showConfirm("Are you sure you want to delete your account? This action cannot be undone and will delete all your trips, bookings, and ratings.");
             if (!confirmed) return;
 
             try {
@@ -1877,16 +1842,16 @@ function setupProfileListeners() {
                 });
 
                 if (res.ok) {
-                    alert("Your account has been deleted successfully.");
+                    showToast("Your account has been deleted successfully.");
                     localStorage.removeItem("routeshare_user");
                     showAuthScreens();
                     logConsole("[Session] Account deleted and logged out.", "text-warning");
                 } else {
-                    alert("Failed to delete account. Please try again.");
+                    showToast("Failed to delete account. Please try again.");
                 }
             } catch (err) {
                 console.error("Error deleting account", err);
-                alert("Network error deleting account.");
+                showToast("Network error deleting account.");
             }
         });
     }
@@ -1901,7 +1866,7 @@ function setupProfileListeners() {
             const password = document.getElementById("profile-password").value;
 
             if (!name || !password) {
-                alert("Username and password are required.");
+                showToast("Username and password are required.");
                 return;
             }
 
@@ -1920,7 +1885,7 @@ function setupProfileListeners() {
                 });
 
                 if (!res.ok) {
-                    alert("Failed to update profile settings.");
+                    showToast("Failed to update profile settings.");
                     return;
                 }
 
@@ -1933,7 +1898,7 @@ function setupProfileListeners() {
                     const capacity = parseInt(document.getElementById("profile-car-capacity").value);
 
                     if (!make || !model || isNaN(capacity)) {
-                        alert("Vehicle make, model, and capacity are required for drivers.");
+                        showToast("Vehicle make, model, and capacity are required for drivers.");
                         return;
                     }
 
@@ -1951,7 +1916,7 @@ function setupProfileListeners() {
                     });
 
                     if (!vRes.ok) {
-                        alert("User details updated, but failed to update vehicle details.");
+                        showToast("User details updated, but failed to update vehicle details.");
                         return;
                     }
                 }
@@ -1969,11 +1934,11 @@ function setupProfileListeners() {
                 updateSessionDisplay();
                 await loadAllData();
                 updateDashboardVisibility();
-                alert("Profile details updated successfully.");
+                showToast("Profile details updated successfully.");
                 logConsole(`[Profile] Updated details for User ID: ${currentUser.id}`, "text-success");
             } catch (err) {
                 console.error("Error updating profile", err);
-                alert("Network error updating profile.");
+                showToast("Network error updating profile.");
             }
         });
     }
@@ -2051,7 +2016,7 @@ async function offerRideForRequest(origin, destination, requestId, passengerId, 
                     });
                     msg += `\nWould you like to add the passenger to the first matching trip (Trip #${matches[0].tripOfferId})?\nClick OK to add, or Cancel to create a brand new trip.`;
                     
-                    if (confirm(msg)) {
+                    if (await showConfirm(msg, "Add to Trip", "New Trip")) {
                         await bindPassengerToExistingTrip(matches[0].tripOfferId, origin, destination, passengerId, windowStart, windowEnd);
                         return;
                     }
@@ -2086,19 +2051,255 @@ async function bindPassengerToExistingTrip(tripOfferId, origin, destination, pas
         if (res.ok) {
             const data = await res.json();
             if (data.bookingStatus === 'FAILED_ROUTING') {
-                alert("Could not route the passenger on this trip.");
+                showToast("Could not route the passenger on this trip.");
             } else {
-                alert("Successfully added the passenger to your existing trip!");
+                showToast("Successfully added the passenger to your existing trip!");
                 logConsole(`[System] Passenger added to Trip #${tripOfferId}`, "text-success");
                 await loadAllData();
                 navigateTo('view-my-trips');
             }
         } else {
             const text = await res.text();
-            alert("Error binding passenger: " + text);
+            showToast("Error binding passenger: " + text);
         }
     } catch (e) {
         console.error("Error linking trip:", e);
-        alert("An error occurred while linking the trip.");
+        showToast("An error occurred while linking the trip.");
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   NOTIFICATION CENTER (Sprint 7: FR-13) — Observer pattern client side
+   Polls the inbox endpoint and renders the bell badge + dropdown panel.
+   ═══════════════════════════════════════════════════════════════════ */
+let notifPollTimer = null;
+let cachedNotifications = [];
+
+function startNotificationPolling() {
+    if (notifPollTimer) return; // idempotent
+    loadNotifications();
+    notifPollTimer = setInterval(loadNotifications, 30000);
+}
+
+function stopNotificationPolling() {
+    if (notifPollTimer) {
+        clearInterval(notifPollTimer);
+        notifPollTimer = null;
+    }
+    cachedNotifications = [];
+}
+
+async function loadNotifications() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/notifications/user/${currentUser.id}`);
+        if (!res.ok) return;
+        cachedNotifications = await res.json();
+        renderNotificationBadge();
+        renderNotificationPanel();
+    } catch (e) {
+        console.error("Notification polling failed:", e);
+    }
+}
+
+function renderNotificationBadge() {
+    const badge = document.getElementById("notif-badge");
+    if (!badge) return;
+    const unread = cachedNotifications.filter(n => !n.read).length;
+    badge.style.display = unread > 0 ? "inline-block" : "none";
+    badge.innerText = unread > 9 ? "9+" : unread;
+}
+
+function renderNotificationPanel() {
+    const list = document.getElementById("notif-list");
+    if (!list) return;
+    if (cachedNotifications.length === 0) {
+        list.innerHTML = `<p class="text-muted" style="padding: 12px;">No notifications yet.</p>`;
+        return;
+    }
+    list.innerHTML = cachedNotifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}" onclick="openNotification(${n.id}, '${n.type}')" title="Open related view">
+            ${n.type === 'RATING' ? '⭐' : n.type === 'BOOKING' ? '🚗' : 'ℹ️'} ${n.message}
+            <span class="notif-time">${relativeTime(n.createdAt)}</span>
+        </div>
+    `).join("");
+}
+
+function toggleNotificationPanel() {
+    const panel = document.getElementById("notif-panel");
+    if (!panel) return;
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    if (panel.style.display === "block") loadNotifications();
+}
+
+async function markNotifRead(id) {
+    try {
+        await fetch(`/api/notifications/${id}/mark-read`, { method: "POST" });
+        await loadNotifications();
+    } catch (e) {
+        console.error("Failed to mark notification read:", e);
+    }
+}
+
+async function markAllNotifsRead() {
+    if (!currentUser) return;
+    try {
+        await fetch(`/api/notifications/user/${currentUser.id}/mark-all-read`, { method: "POST" });
+        await loadNotifications();
+        logConsole("[Notifications] All notifications marked as read.", "text-muted");
+    } catch (e) {
+        console.error("Failed to mark all read:", e);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOOKING LIFECYCLE ACTIONS (Sprint 6: FR-12) — client for the
+   BookingController state machine endpoints.
+   ═══════════════════════════════════════════════════════════════════ */
+function bookingStatusBadge(status) {
+    const s = status || "PENDING";
+    return `<span class="status-badge status-${s}">${s}</span>`;
+}
+
+let bookingActionInFlight = false;
+async function bookingTransition(rideId, action) {
+    if (bookingActionInFlight) return;
+    bookingActionInFlight = true;
+    try {
+        const res = await fetch(`/api/bookings/${rideId}/${action}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            showToast(`Booking #${rideId} ${data.status.toLowerCase()}.`, "success");
+            logConsole(`[Booking] Request #${rideId} → ${data.status}`, "text-success");
+            await loadAllData();
+            await loadNotifications();
+        } else {
+            showToast(data.error || `Could not ${action} booking.`);
+        }
+    } catch (e) {
+        console.error(`Booking ${action} failed:`, e);
+    } finally {
+        bookingActionInFlight = false;
+    }
+}
+
+async function completeTripLifecycle(tripId) {
+    if (!(await showConfirm("Mark this trip as completed? All confirmed passengers will be notified to rate you.", "Complete Trip"))) return;
+    try {
+        const res = await fetch(`/api/bookings/trip/${tripId}/complete`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            logConsole(`[Booking] Trip #${tripId} completed — ${data.completedBookings} booking(s) closed.`, "text-success");
+            showToast(`Trip completed! ${data.completedBookings} passenger booking(s) closed.`);
+            await loadAllData();
+            await loadNotifications();
+        } else {
+            showToast(data.error || "Could not complete trip.");
+        }
+    } catch (e) {
+        console.error("Complete trip failed:", e);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UX PRIMITIVES (Sprint 7: UX hardening) — toast notifications,
+   styled confirm dialog, and button loading states. Replaces all
+   native browser alert/confirm dialogs.
+   ═══════════════════════════════════════════════════════════════════ */
+function showToast(message, type) {
+    if (!type) {
+        const m = String(message).toLowerCase();
+        if (/(error|failed|could not|cannot|invalid|denied|unable)/.test(m)) type = "error";
+        else if (/(success|completed|confirmed|welcome|added|saved|updated)/.test(m)) type = "success";
+        else type = "info";
+    }
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        document.body.appendChild(container);
+    }
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    const dismiss = () => {
+        toast.classList.add("toast-out");
+        setTimeout(() => toast.remove(), 260);
+    };
+    toast.addEventListener("click", dismiss);
+    container.appendChild(toast);
+    setTimeout(dismiss, 4200);
+}
+
+function showConfirm(message, confirmLabel = "Confirm", cancelLabel = "Cancel") {
+    return new Promise(resolve => {
+        const overlay = document.createElement("div");
+        overlay.className = "confirm-overlay";
+        overlay.innerHTML = `
+            <div class="confirm-box">
+                <p></p>
+                <div class="confirm-actions">
+                    <button class="btn btn-secondary btn-sm confirm-cancel">${cancelLabel}</button>
+                    <button class="btn btn-accent btn-sm confirm-ok">${confirmLabel}</button>
+                </div>
+            </div>`;
+        overlay.querySelector("p").textContent = message;
+        const close = (result) => { overlay.remove(); resolve(result); };
+        overlay.querySelector(".confirm-ok").addEventListener("click", () => close(true));
+        overlay.querySelector(".confirm-cancel").addEventListener("click", () => close(false));
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) close(false); });
+        document.body.appendChild(overlay);
+        overlay.querySelector(".confirm-ok").focus();
+    });
+}
+
+function setBtnLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Working\u2026';
+    } else {
+        btn.disabled = false;
+        if (btn.dataset.originalHtml) btn.innerHTML = btn.dataset.originalHtml;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE SIDEBAR (Sprint 7: UX hardening)
+   ═══════════════════════════════════════════════════════════════════ */
+function toggleSidebar(force) {
+    const open = typeof force === "boolean" ? force : !document.body.classList.contains("sidebar-open");
+    document.body.classList.toggle("sidebar-open", open);
+}
+
+/* Relative time for notification timestamps: "just now", "5m ago", ... */
+function relativeTime(iso) {
+    try {
+        const then = new Date(iso).getTime();
+        const diff = Math.max(0, Date.now() - then);
+        const min = Math.floor(diff / 60000);
+        if (min < 1) return "just now";
+        if (min < 60) return `${min}m ago`;
+        const hrs = Math.floor(min / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.floor(hrs / 24);
+        if (days < 7) return `${days}d ago`;
+        return formatDateTime(iso);
+    } catch (e) {
+        return formatDateTime(iso);
+    }
+}
+
+/* Click-through: open the view that a notification refers to. */
+function openNotification(id, type) {
+    markNotifRead(id);
+    const panel = document.getElementById("notif-panel");
+    if (panel) panel.style.display = "none";
+    if (!currentUser) return;
+    if (type === "BOOKING") {
+        navigateTo(currentUser.role === "DRIVER" ? "view-my-trips" : "view-my-bookings");
+    } else if (type === "RATING") {
+        navigateTo("view-profile");
     }
 }

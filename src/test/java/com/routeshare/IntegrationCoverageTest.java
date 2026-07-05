@@ -30,6 +30,10 @@ public class IntegrationCoverageTest {
         System.setProperty("net.bytebuddy.experimental", "true");
     }
 
+    // Dynamic future date (30 days ahead) — prevents @FutureOrPresent date-rot
+    private static final java.time.LocalDate FUTURE_DAY = java.time.LocalDate.now().plusDays(30);
+    private static final String FUTURE_DATE = FUTURE_DAY.toString();
+
     @Autowired
     private TestRestTemplate restTemplate;
 
@@ -372,7 +376,7 @@ public class IntegrationCoverageTest {
         payload.put("driver", driverObj);
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneC");
-        payload.put("departureTime", "2026-06-20T08:00:00");
+        payload.put("departureTime", FUTURE_DATE + "T08:00:00");
         payload.put("maxStops", 3);
         payload.put("maxDetourMinutes", 30);
 
@@ -413,7 +417,7 @@ public class IntegrationCoverageTest {
         payload.put("driver", driverObj);
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneD");
-        payload.put("departureTime", "2026-06-20T09:00:00");
+        payload.put("departureTime", FUTURE_DATE + "T09:00:00");
         payload.put("maxStops", 4);
         payload.put("maxDetourMinutes", 45);
 
@@ -431,7 +435,7 @@ public class IntegrationCoverageTest {
         Map<String, Object> payload = new HashMap<>();
         payload.put("origin", "ZoneX");
         payload.put("destination", "ZoneY");
-        payload.put("departureTime", "2026-06-20T09:00:00");
+        payload.put("departureTime", FUTURE_DATE + "T09:00:00");
         payload.put("maxStops", 2);
         payload.put("maxDetourMinutes", 20);
 
@@ -453,7 +457,7 @@ public class IntegrationCoverageTest {
         Map<String, String> payload = new HashMap<>();
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneB");
-        payload.put("date", "2026-06-20");
+        payload.put("date", FUTURE_DATE);
         payload.put("passengerId", passengerId.toString());
         ResponseEntity<List> res = restTemplate.postForEntity("/api/trips/search-matches", payload, List.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -475,7 +479,7 @@ public class IntegrationCoverageTest {
         Map<String, String> payload = new HashMap<>();
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneB");
-        payload.put("date", "2026-06-20");
+        payload.put("date", FUTURE_DATE);
         payload.put("passengerId", "99999");
         ResponseEntity<String> res = restTemplate.postForEntity("/api/trips/search-matches", payload, String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -492,7 +496,7 @@ public class IntegrationCoverageTest {
             Map<String, String> payload = new HashMap<>();
             payload.put("origin", "ZoneA");
             payload.put("destination", "ZoneB");
-            payload.put("date", "2026-06-20");
+            payload.put("date", FUTURE_DATE);
             payload.put("passengerId", passengerId.toString());
 
             ResponseEntity<List> res = restTemplate.postForEntity("/api/trips/search-matches", payload, List.class);
@@ -517,8 +521,8 @@ public class IntegrationCoverageTest {
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneB");
         payload.put("passengerId", passengerId.toString());
-        payload.put("pickupTimeWindowStart", "2026-06-20T07:00:00");
-        payload.put("pickupTimeWindowEnd", "2026-06-20T09:00:00");
+        payload.put("pickupTimeWindowStart", FUTURE_DATE + "T07:00:00");
+        payload.put("pickupTimeWindowEnd", FUTURE_DATE + "T09:00:00");
 
         ResponseEntity<Map> res = restTemplate.postForEntity("/api/trips/" + tripId + "/book-passenger", payload, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -531,8 +535,8 @@ public class IntegrationCoverageTest {
         payload.put("origin", "ZoneB");
         payload.put("destination", "ZoneC");
         payload.put("passengerId", passenger2Id.toString());
-        payload.put("pickupTimeWindowStart", "2026-06-20T07:00:00");
-        payload.put("pickupTimeWindowEnd", "2026-06-20T09:00:00");
+        payload.put("pickupTimeWindowStart", FUTURE_DATE + "T07:00:00");
+        payload.put("pickupTimeWindowEnd", FUTURE_DATE + "T09:00:00");
 
         ResponseEntity<Map> res = restTemplate.postForEntity("/api/trips/" + tripId + "/book-passenger", payload, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -555,8 +559,8 @@ public class IntegrationCoverageTest {
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneB");
         payload.put("passengerId", passengerId.toString());
-        payload.put("pickupTimeWindowStart", "2026-06-20T07:00:00");
-        payload.put("pickupTimeWindowEnd", "2026-06-20T09:00:00");
+        payload.put("pickupTimeWindowStart", FUTURE_DATE + "T07:00:00");
+        payload.put("pickupTimeWindowEnd", FUTURE_DATE + "T09:00:00");
 
         ResponseEntity<String> res = restTemplate.postForEntity("/api/trips/99999/book-passenger", payload, String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -569,8 +573,8 @@ public class IntegrationCoverageTest {
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneB");
         payload.put("passengerId", "99999");
-        payload.put("pickupTimeWindowStart", "2026-06-20T07:00:00");
-        payload.put("pickupTimeWindowEnd", "2026-06-20T09:00:00");
+        payload.put("pickupTimeWindowStart", FUTURE_DATE + "T07:00:00");
+        payload.put("pickupTimeWindowEnd", FUTURE_DATE + "T09:00:00");
 
         ResponseEntity<String> res = restTemplate.postForEntity("/api/trips/" + tripId + "/book-passenger", payload, String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -643,7 +647,7 @@ public class IntegrationCoverageTest {
         payload.put("driver", driverObj);
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneD");
-        payload.put("departureTime", "2026-06-20T08:30:00");
+        payload.put("departureTime", FUTURE_DATE + "T08:30:00");
         payload.put("maxStops", 4);
         payload.put("maxDetourMinutes", 60);
 
@@ -651,7 +655,8 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<?> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, Map.class);
+        // String.class: the 400 branch returns a plain-text message, not JSON
+        ResponseEntity<String> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, String.class);
         // Could be OK or BAD_REQUEST depending on routing feasibility – both exercise the code
         assertThat(res.getStatusCode().value()).isIn(200, 400);
     }
@@ -812,7 +817,4 @@ public class IntegrationCoverageTest {
 
     @Test
     @Order(104)
-    public void deleteDriver() {
-        restTemplate.delete("/api/users/" + driverId);
-    }
-}
+    publi

@@ -20,11 +20,15 @@ public class RatingService {
 
     private final RatingRepository ratingRepository;
     private final ReputationService reputationService;
+    private final NotificationService notificationService;
 
     @Autowired
-    public RatingService(RatingRepository ratingRepository, @Lazy ReputationService reputationService) {
+    public RatingService(RatingRepository ratingRepository,
+                         @Lazy ReputationService reputationService,
+                         NotificationService notificationService) {
         this.ratingRepository = ratingRepository;
         this.reputationService = reputationService;
+        this.notificationService = notificationService;
     }
 
     public List<Rating> findAll() {
@@ -40,6 +44,10 @@ public class RatingService {
         // Step 1: Event Reception propagation to Reputation system
         if (savedRating.getReviewee() != null) {
             reputationService.handleNewRating(savedRating.getReviewee().getId(), savedRating.getScore());
+            // Observer Pattern: notify the reviewee about the new rating event
+            notificationService.notify(savedRating.getReviewee(),
+                    com.routeshare.model.enums.NotificationType.RATING,
+                    "You received a new " + savedRating.getScore() + "-star rating.");
         }
         return savedRating;
     }
