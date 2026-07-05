@@ -38,6 +38,7 @@ public class TripPlanningController {
     private final MappingService mappingService;
     private final PaymentService paymentService;
     private final UserService userService;
+    private final NotificationService notificationService;
 
     @Autowired
     public TripPlanningController(TripOfferService tripOfferService,
@@ -47,7 +48,8 @@ public class TripPlanningController {
                                   PricingEngine pricingEngine,
                                   MappingService mappingService,
                                   PaymentService paymentService,
-                                  UserService userService) {
+                                  UserService userService,
+                                  NotificationService notificationService) {
         this.tripOfferService = tripOfferService;
         this.rideRequestService = rideRequestService;
         this.vehicleService = vehicleService;
@@ -56,6 +58,7 @@ public class TripPlanningController {
         this.mappingService = mappingService;
         this.paymentService = paymentService;
         this.userService = userService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -350,7 +353,18 @@ public class TripPlanningController {
             passengersBreakdown.add(pDetail);
 
             response.put("passengers", passengersBreakdown);
-            response.put("bookingStatus", (identityVerified && transactionCleared) ? "SUCCESSFUL" : "PAYMENT_HOLD");
+            boolean bookingSuccessful = identityVerified && transactionCleared;
+            response.put("bookingStatus", bookingSuccessful ? "SUCCESSFUL" : "PAYMENT_HOLD");
+
+            // 7. Advance booking state machine + notify the driver (Observer pattern)
+            rideRequest.setStatus(bookingSuccessful
+                    ? com.routeshare.model.enums.BookingStatus.CONFIRMED
+                    : com.routeshare.model.enums.BookingStatus.PENDING);
+            rideRequestService.save(rideRequest);
+            notificationService.notify(driver, com.routeshare.model.enums.NotificationType.BOOKING,
+                    passenger.getName() + " booked a seat on your trip " + offer.getOrigin()
+                            + " -> " + offer.getDestination()
+                            + (bookingSuccessful ? " (payment cleared)." : " (payment on hold)."));
 
             return ResponseEntity.ok(response);
         } catch (MapApiException e) {
@@ -398,21 +412,3 @@ public class TripPlanningController {
                     if (routingResult.isFeasible()) {
                         Map<String, Object> match = new HashMap<>();
                         match.put("tripOfferId", offer.getId());
-                        match.put("origin", offer.getOrigin());
-                        match.put("destination", offer.getDestination());
-                        match.put("departureTime", offer.getDepartureTime().toString());
-                        match.put("totalTimeMinutes", routingResult.getTotalTimeMinutes());
-                        match.put("totalDistanceKm", routingResult.getTotalDistanceKm());
-                        matchingResults.add(match);
-                    }
-                } catch (MapApiException e) {
-                    System.out.println("Skipping incompatible driver offer ID " + offer.getId() + " due to mapping error: " + e.getMessage());
-                }
-            }
-
-            return ResponseEntity.ok(matchingResults);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing matches: " + e.getMessage());
-        }
-    }
-}

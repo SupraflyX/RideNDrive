@@ -1,0 +1,39 @@
+# RideNDrive — one-command local deployment (Infrastructure as Code)
+#
+# Usage:
+#   cp .env.example .env   # fill in your values
+#   docker compose up --build
+#
+# App:      http://localhost:8080
+# Database: MySQL 8.0 with a persisted volume and health-checked startup order.
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: routesharedb
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/routesharedb?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db_data:

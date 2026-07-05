@@ -1,14 +1,16 @@
-# RouteShare — Software Engineering Project Report
+# RideNDrive — Software Engineering Project Report
+
+> **Note:** this Markdown report (v1) is superseded by **`RideNDrive_Report_v2.docx`**, the
+> full Scrum/DevOps process report (sprints, backlog, burndown/burnup charts, uniquely
+> identified requirements). v1 is kept for historical reference only.
 
 ## 1. Title Page and Metadata
-**Project Name:** RouteShare  
-**Team Details:** 
-- Mohammad Haroon (560824) – Lead Developer & Architect (haroon@example.com)  
-- Maaz Ahmed (560825) – Frontend Engineer (maaz@example.com)
-- Rizwan Ali (560826) – QA & Testing Engineer (rizwan@example.com)
+**Project Name:** RideNDrive (working name: RouteShare)  
+**Student:** Mohammad Haroon (560824)  
+**Supervisor:** Prof. Salvatore Distefano  
 **Course:** Software Engineering — 3rd Year  
-**Timeline:** Submitted June 2026  
-**Version:** v1.0.0 Release  
+**Timeline:** v1 June 2026 · v2 July 2026  
+**Version:** v2.0.0  
 
 ---
 
@@ -227,6 +229,4 @@ RouteShare successfully met all its primary objectives. The backend algorithm ac
 
 ![Rating and Reputation Update Flow](diagram_pdfs/10_Rating_and_Reputation_Update_Flow.png)
 
-![Cascading Account Deletion Flow](diagram_pdfs/11_Cascading_Account_Deletion_Flow.png)
-
-![UI Flow Diagram](diagram_pdfs/15_UI_Flow_Diagram.png)
+![Cascading Acco

@@ -1,5 +1,6 @@
 package com.routeshare.model;
 
+import com.routeshare.model.enums.BookingStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
@@ -48,6 +49,15 @@ public class RideRequest {
     @NotNull(message = "Pickup time window end is required")
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowEnd;
+
+    /**
+     * Lifecycle state of this booking. Transitions are guarded by
+     * BookingLifecycleService (State pattern) — see BookingStatus for the
+     * legal transition relation.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private BookingStatus status = BookingStatus.PENDING;
 
     public RideRequest() {
     }
@@ -106,6 +116,14 @@ public class RideRequest {
 
     public void setPickupTimeWindowEnd(LocalDateTime pickupTimeWindowEnd) {
         this.pickupTimeWindowEnd = pickupTimeWindowEnd;
+    }
+
+    public BookingStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(BookingStatus status) {
+        this.status = status;
     }
 
     public TripOffer getTripOffer() {

@@ -1,0 +1,33 @@
+digraph booking_confirm_activity {
+	bgcolor=white fontname=Helvetica nodesep=0.4 pad=0.3 rankdir=TB ranksep=0.42
+	node [fontname=Helvetica fontsize=10.5]
+	edge [color="#374151" fontname=Helvetica fontsize=9]
+	start [label="" fillcolor=black fixedsize=true shape=circle style=filled width=0.2]
+	a1 [label="Driver opens \"My Published Rides\"" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a2 [label="UI renders PENDING bookings
+with Confirm / Decline controls" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a3 [label="Driver clicks Confirm" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a4 [label="POST /api/bookings/{id}/confirm" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	d1 [label="Transition legal?
+PENDING → CONFIRMED" color="#d97706" fillcolor="#fef3c7" margin="0.05,0.05" shape=diamond style=filled]
+	a5 [label="BookingLifecycleService
+updates status to CONFIRMED" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a6 [label="NotificationService.notify(passenger,
+BOOKING, \"booking confirmed\")" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a7 [label="HTTP 200 + new status returned;
+UI refreshes badge and tables" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	e1 [label="HTTP 409 CONFLICT
+\"Illegal booking transition\"" color="#dc2626" fillcolor="#fee2e2" margin="0.16,0.08" shape=box style="rounded,filled"]
+	end [label="" fillcolor=black fixedsize=true shape=doublecircle style=filled width=0.16]
+	start -> a1
+	a1 -> a2
+	a2 -> a3
+	a3 -> a4
+	a4 -> d1
+	d1 -> a5 [label=" yes "]
+	d1 -> e1 [label=" no "]
+	a5 -> a6
+	a6 -> a7
+	a7 -> end
+	e1 -> end
+}

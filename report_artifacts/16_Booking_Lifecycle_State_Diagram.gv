@@ -1,0 +1,26 @@
+digraph booking_states {
+	bgcolor=white fontname=Helvetica nodesep=0.55 pad=0.3 rankdir=TB ranksep=0.5
+	node [fontname=Helvetica fontsize=11]
+	edge [color="#374151" fontname=Helvetica fontsize=9.5]
+	init [label="" fillcolor=black fixedsize=true shape=circle style=filled width=0.22]
+	PENDING [label=PENDING color="#2563eb" fillcolor="#dbeafe" margin="0.18,0.09" shape=box style="rounded,filled"]
+	CONFIRMED [label=CONFIRMED color="#2563eb" fillcolor="#dbeafe" margin="0.18,0.09" shape=box style="rounded,filled"]
+	REJECTED [label=REJECTED color="#6b7280" fillcolor="#f3f4f6" margin="0.18,0.09" shape=box style="rounded,filled"]
+	CANCELLED [label=CANCELLED color="#6b7280" fillcolor="#f3f4f6" margin="0.18,0.09" shape=box style="rounded,filled"]
+	COMPLETED [label=COMPLETED color="#059669" fillcolor="#d1fae5" margin="0.18,0.09" shape=box style="rounded,filled"]
+	final [label="" fillcolor=black fixedsize=true shape=doublecircle style=filled width=0.18]
+	init -> PENDING [label=" passenger books seat "]
+	PENDING -> CONFIRMED [label=" driver confirms
+[seat available] / notify passenger "]
+	PENDING -> REJECTED [label=" driver declines
+/ notify passenger "]
+	PENDING -> CANCELLED [label=" passenger withdraws
+/ notify driver "]
+	CONFIRMED -> CANCELLED [label=" passenger withdraws
+/ notify driver "]
+	CONFIRMED -> COMPLETED [label=" driver completes trip
+/ notify passenger, request rating "]
+	REJECTED -> final
+	CANCELLED -> final
+	COMPLETED -> final
+}

@@ -42,6 +42,12 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime lastActiveDate = LocalDateTime.now();
 
+    /**
+     * BCrypt hash of the user's password. WRITE_ONLY access means clients can
+     * send a password in requests, but the hash is never serialized into any
+     * API response (prevents credential-hash disclosure).
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     @NotBlank(message = "Password cannot be empty")
     @Size(min = 6, message = "Password must be at least 6 characters")
     @Column(nullable = false)
@@ -108,19 +114,4 @@ public class User {
         this.incentiveTier = incentiveTier;
     }
 
-    public LocalDateTime getLastActiveDate() {
-        return lastActiveDate;
-    }
-
-    public void setLastActiveDate(LocalDateTime lastActiveDate) {
-        this.lastActiveDate = lastActiveDate;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-}
+  

@@ -1,0 +1,35 @@
+digraph uiflow {
+	bgcolor=white fontname=Helvetica nodesep=0.35 pad=0.3 rankdir=TB ranksep=0.45
+	node [fontname=Helvetica fontsize=10 margin="0.14,0.08" shape=box style="rounded,filled"]
+	edge [color="#374151" fontname=Helvetica fontsize=8.5]
+	auth [label="Sign in / Register
+(passenger or driver+vehicle)" color="#4f46e5" fillcolor="#e0e7ff"]
+	psearch [label="Find a Ride (landing)
+search-first, feasibility-checked results" color="#2563eb" fillcolor="#dbeafe"]
+	pbook [label="Book seat
+fare breakdown + payment simulation" color="#2563eb" fillcolor="#dbeafe"]
+	prides [label="My Rides
+lifecycle status, edit / withdraw" color="#2563eb" fillcolor="#dbeafe"]
+	prate [label="Rate a Driver
+completed trips only" color="#2563eb" fillcolor="#dbeafe"]
+	dtrips [label="My Trips (landing)
+bookings inline: confirm / decline / complete" color="#059669" fillcolor="#d1fae5"]
+	doffer [label="Offer a Trip
+constraints: max pickups + detour budget" color="#059669" fillcolor="#d1fae5"]
+	dfind [label="Find Passengers
+open requests -> offer ride" color="#059669" fillcolor="#d1fae5"]
+	drate [label="Rate a Passenger
+completed trips only" color="#059669" fillcolor="#d1fae5"]
+	shared [label="Community / Profile / Notifications
+(shared: reputation tiers, inbox, account)" color="#d97706" fillcolor="#fef3c7"]
+	auth -> psearch [label=" passenger "]
+	auth -> dtrips [label=" driver "]
+	psearch -> pbook [label=" feasible match "]
+	pbook -> prides
+	prides -> prate [label=" after COMPLETED "]
+	dtrips -> doffer
+	dfind -> dtrips [label=" adds booking "]
+	dtrips -> drate [label=" after COMPLETED "]
+	psearch -> shared [style=dashed]
+	dtrips -> shared [style=dashed]
+}
