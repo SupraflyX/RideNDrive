@@ -36,3 +36,8 @@ revert.py
 
 # === Logs ===
 *.log
+
+# === Editor / OS temp & backup files ===
+*.bak_gemini
+~$*
+New Text Document.txt

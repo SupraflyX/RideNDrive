@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.reset;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@TestPropertySource(properties = "google.maps.api-key=")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class IntegrationCoverageTest {
 
@@ -647,7 +649,7 @@ public class IntegrationCoverageTest {
         payload.put("driver", driverObj);
         payload.put("origin", "ZoneA");
         payload.put("destination", "ZoneD");
-        payload.put("departureTime", FUTURE_DATE + "T08:30:00");
+        payload.put("departureTime", "2026-06-20T08:30:00");
         payload.put("maxStops", 4);
         payload.put("maxDetourMinutes", 60);
 
@@ -655,8 +657,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        // String.class: the 400 branch returns a plain-text message, not JSON
-        ResponseEntity<String> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, String.class);
+        ResponseEntity<?> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, Map.class);
         // Could be OK or BAD_REQUEST depending on routing feasibility – both exercise the code
         assertThat(res.getStatusCode().value()).isIn(200, 400);
     }
@@ -817,4 +818,7 @@ public class IntegrationCoverageTest {
 
     @Test
     @Order(104)
-    publi
+    public void deleteDriver() {
+        restTemplate.delete("/api/users/" + driverId);
+    }
+}

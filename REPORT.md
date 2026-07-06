@@ -229,4 +229,6 @@ RouteShare successfully met all its primary objectives. The backend algorithm ac
 
 ![Rating and Reputation Update Flow](diagram_pdfs/10_Rating_and_Reputation_Update_Flow.png)
 
-![Cascading Acco
+![Cascading Account Deletion Flow](diagram_pdfs/11_Cascading_Account_Deletion_Flow.png)
+
+![UI Flow Diagram](diagram_pdfs/15_UI_Flow_Diagram.png)

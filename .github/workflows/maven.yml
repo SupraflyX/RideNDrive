@@ -24,4 +24,28 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
-    - name: Generate JaCoCo Coverage R
+    - name: Generate JaCoCo Coverage Report
+      run: mvn test jacoco:report
+
+    - name: Upload JaCoCo Coverage Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: jacoco-coverage-report
+        path: target/site/jacoco/
+
+    - name: Upload Application Jar
+      uses: actions/upload-artifact@v4
+      with:
+        name: application-jar
+        path: target/*.jar
+
+  docker:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+    needs: build-test
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: docker build -t ridendrive:${{ github.sha }} .

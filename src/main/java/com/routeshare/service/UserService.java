@@ -23,18 +23,21 @@ public class UserService {
     private final TripOfferRepository tripOfferRepository;
     private final RideRequestRepository rideRequestRepository;
     private final RatingRepository ratingRepository;
+    private final NotificationRepository notificationRepository;
 
     @Autowired
     public UserService(UserRepository userRepository,
                        VehicleRepository vehicleRepository,
                        TripOfferRepository tripOfferRepository,
                        RideRequestRepository rideRequestRepository,
-                       RatingRepository ratingRepository) {
+                       RatingRepository ratingRepository,
+                       NotificationRepository notificationRepository) {
         this.userRepository = userRepository;
         this.vehicleRepository = vehicleRepository;
         this.tripOfferRepository = tripOfferRepository;
         this.rideRequestRepository = rideRequestRepository;
         this.ratingRepository = ratingRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     public List<User> findAll() {
@@ -69,31 +72,18 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * Cascading account deletion (FR-4): all dependent records are removed via
+     * repository derived queries (answered by the database, not by loading
+     * every row into memory) inside a single transaction.
+     */
     @Transactional
     public void delete(Long id) {
-        // Delete ratings where reviewer_id = id or reviewee_id = id
-        List<Rating> ratings = ratingRepository.findAll().stream()
-                .filter(r -> r.getReviewer().getId().equals(id) || r.getReviewee().getId().equals(id))
-                .toList();
-        ratingRepository.deleteAll(ratings);
-
-        // Delete vehicles where driver_id = id
-        List<Vehicle> vehicles = vehicleRepository.findByDriverId(id);
-        vehicleRepository.deleteAll(vehicles);
-
-        // Delete trip offers where driver_id = id
-        List<TripOffer> trips = tripOfferRepository.findAll().stream()
-                .filter(t -> t.getDriver().getId().equals(id))
-                .toList();
-        tripOfferRepository.deleteAll(trips);
-
-        // Delete ride requests where passenger_id = id
-        List<RideRequest> rides = rideRequestRepository.findAll().stream()
-                .filter(r -> r.getPassenger().getId().equals(id))
-                .toList();
-        rideRequestRepository.deleteAll(rides);
-
+        notificationRepository.deleteAll(notificationRepository.findByRecipientIdOrderByCreatedAtDesc(id));
+        ratingRepository.deleteAll(ratingRepository.findByReviewerIdOrRevieweeId(id, id));
+        vehicleRepository.deleteAll(vehicleRepository.findByDriverId(id));
+        tripOfferRepository.deleteAll(tripOfferRepository.findByDriverId(id));
+        rideRequestRepository.deleteAll(rideRequestRepository.findByPassengerId(id));
         userRepository.deleteById(id);
     }
 }
-

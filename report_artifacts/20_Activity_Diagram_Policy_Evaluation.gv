@@ -1,0 +1,44 @@
+digraph policy_eval {
+	bgcolor=white fontname=Helvetica nodesep=0.4 pad=0.3 rankdir=TB ranksep=0.4
+	node [fontname=Helvetica fontsize=10]
+	edge [color="#374151" fontname=Helvetica fontsize=8.5]
+	start [label="" fillcolor=black fixedsize=true shape=circle style=filled width=0.2]
+	a1 [label="Candidate request arrives
+(booking / search / ranking)" color="#4f46e5" fillcolor="#e0e7ff" margin="0.15,0.08" shape=box style="rounded,filled"]
+	a2 [label="Load driver's ENABLED rules
+ordered by priority" color="#4f46e5" fillcolor="#e0e7ff" margin="0.15,0.08" shape=box style="rounded,filled"]
+	d1 [label="More rules
+to evaluate?" color="#d97706" fillcolor="#fef3c7" shape=diamond style=filled]
+	a3 [label="Interpret rule predicate
+(MIN_REPUTATION / SAME_DESTINATION /
+NO_LARGE_LUGGAGE)" color="#4f46e5" fillcolor="#e0e7ff" margin="0.15,0.08" shape=box style="rounded,filled"]
+	d2 [label="Predicate
+violated?" color="#d97706" fillcolor="#fef3c7" shape=diamond style=filled]
+	a4 [label="Record violation
+(audit trail)" color="#dc2626" fillcolor="#fee2e2" margin="0.15,0.08" shape=box style="rounded,filled"]
+	d3 [label="Any violations?
+(veto dominates)" color="#d97706" fillcolor="#fef3c7" shape=diamond style=filled]
+	a5 [label="VETO: reject candidate
+HTTP 403 + violation list" color="#dc2626" fillcolor="#fee2e2" margin="0.15,0.08" shape=box style="rounded,filled"]
+	a6 [label="ADMIT: compute ranking score
+reputation x10 + tier bonus
++ zone affinity + luggage bonus" color="#059669" fillcolor="#d1fae5" margin="0.15,0.08" shape=box style="rounded,filled"]
+	a7 [label="Sort admitted candidates
+by score (best first)
+with transparent breakdown" color="#059669" fillcolor="#d1fae5" margin="0.15,0.08" shape=box style="rounded,filled"]
+	end [label="" fillcolor=black fixedsize=true shape=doublecircle style=filled width=0.16]
+	start -> a1
+	a1 -> a2
+	a2 -> d1
+	d1 -> a3 [label=" yes "]
+	a3 -> d2
+	d2 -> a4 [label=" yes "]
+	d2 -> d1 [label=" no "]
+	a4 -> d1
+	d1 -> d3 [label=" no (all evaluated) "]
+	d3 -> a5 [label=" yes "]
+	d3 -> a6 [label=" no "]
+	a6 -> a7
+	a5 -> end
+	a7 -> end
+}

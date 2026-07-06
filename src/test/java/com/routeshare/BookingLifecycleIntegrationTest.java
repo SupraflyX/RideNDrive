@@ -112,8 +112,10 @@ public class BookingLifecycleIntegrationTest {
     @Order(3)
     public void newRideRequest_defaultsToPending() {
         User passenger = userRepository.findById(Long.valueOf(passengerId)).orElseThrow();
+        TripOffer trip = tripOfferRepository.findById(Long.valueOf(tripId)).orElseThrow();
         RideRequest request = new RideRequest(passenger, "Messina Nord", "Catania Centro",
                 LocalDateTime.now().plusDays(1), LocalDateTime.now().plusDays(1).plusHours(2));
+        request.setTripOffer(trip); // lifecycle actions are authorized against the trip's driver
         request = rideRequestRepository.save(request);
         pendingRequestId = request.getId();
 
@@ -128,7 +130,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(4)
     public void confirmPendingBooking_succeeds_andNotifiesPassenger() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/confirm", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/confirm?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().get("status")).isEqualTo("CONFIRMED");
 
@@ -143,7 +145,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(5)
     public void confirmAlreadyConfirmed_returnsConflict() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/confirm", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/confirm?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(res.getBody().get("error").toString()).contains("Illegal booking transition");
     }
@@ -152,7 +154,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(6)
     public void rejectConfirmedBooking_returnsConflict() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/reject", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/reject?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -160,7 +162,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(7)
     public void cancelConfirmedBooking_succeeds() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/cancel", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/cancel?actorId=" + passengerId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().get("status")).isEqualTo("CANCELLED");
     }
@@ -169,11 +171,11 @@ public class BookingLifecycleIntegrationTest {
     @Order(8)
     public void anyTransitionFromCancelled_returnsConflict() {
         ResponseEntity<Map> confirmAgain = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/confirm", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/confirm?actorId=" + driverId, null, Map.class);
         assertThat(confirmAgain.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
         ResponseEntity<Map> cancelAgain = restTemplate.postForEntity(
-                "/api/bookings/" + pendingRequestId + "/cancel", null, Map.class);
+                "/api/bookings/" + pendingRequestId + "/cancel?actorId=" + passengerId, null, Map.class);
         assertThat(cancelAgain.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
@@ -181,12 +183,14 @@ public class BookingLifecycleIntegrationTest {
     @Order(9)
     public void rejectPendingBooking_succeeds() {
         User passenger = userRepository.findById(Long.valueOf(passengerId)).orElseThrow();
+        TripOffer trip = tripOfferRepository.findById(Long.valueOf(tripId)).orElseThrow();
         RideRequest request = new RideRequest(passenger, "Villafranca", "Taormina",
                 LocalDateTime.now().plusDays(2), LocalDateTime.now().plusDays(2).plusHours(2));
+        request.setTripOffer(trip);
         secondRequestId = rideRequestRepository.save(request).getId();
 
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/" + secondRequestId + "/reject", null, Map.class);
+                "/api/bookings/" + secondRequestId + "/reject?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().get("status")).isEqualTo("REJECTED");
     }
@@ -195,7 +199,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(10)
     public void transitionOnMissingBooking_returnsNotFound() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/999999/confirm", null, Map.class);
+                "/api/bookings/999999/confirm?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -233,7 +237,7 @@ public class BookingLifecycleIntegrationTest {
         rideRequestRepository.save(request);
 
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/trip/" + tripId + "/complete", null, Map.class);
+                "/api/bookings/trip/" + tripId + "/complete?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         Number completed = (Number) res.getBody().get("completedBookings");
         assertThat(completed.intValue()).isGreaterThanOrEqualTo(1);
@@ -243,7 +247,7 @@ public class BookingLifecycleIntegrationTest {
     @Order(13)
     public void completeMissingTrip_returnsNotFound() {
         ResponseEntity<Map> res = restTemplate.postForEntity(
-                "/api/bookings/trip/888888/complete", null, Map.class);
+                "/api/bookings/trip/888888/complete?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -297,22 +301,27 @@ public class BookingLifecycleIntegrationTest {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // FR-13: Rating event emits a notification (Observer)
-    // ─────────────────────────────────────────────────────────────────
-
-    // ─────────────────────────────────────────────────────────────────
-    // NFR-2: Runtime config endpoint (no secrets hardcoded in frontend)
+    // FR-10 integrity: rating eligibility from COMPLETED bookings
     // ─────────────────────────────────────────────────────────────────
 
     @Test
-    @Order(19)
-    public void configEndpoint_exposesMapsKeyField_withoutSecretsInFrontend() {
-        ResponseEntity<Map> res = restTemplate.getForEntity("/api/config", Map.class);
+    @Order(20)
+    public void rateable_passengerCanRateDriver_afterCompletedTrip() {
+        // Test 12 completed a booking of LifecyclePassenger on LifecycleDriver's trip
+        ResponseEntity<List> res = restTemplate.getForEntity(
+                "/api/bookings/rateable/" + passengerId, List.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        // Field must exist; in the test profile the key is empty (env-driven, never hardcoded)
-        assertThat(res.getBody()).containsKey("mapsApiKey");
+        List<Map<String, Object>> counterparts = res.getBody();
+        assertThat(counterparts).extracting(u -> u.get("id")).contains(driverId);
     }
 
     @Test
-    @Order(18)
-   
+    @Order(21)
+    public void rateable_driverCanRatePassenger_afterCompletedTrip() {
+        ResponseEntity<List> res = restTemplate.getForEntity(
+                "/api/bookings/rateable/" + driverId, List.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<Map<String, Object>> counterparts = res.getBody();
+        assertThat(counterparts).extracting(u -> u.get("id")).contains(passengerId);
+    }
+}

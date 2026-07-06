@@ -1,63 +1,59 @@
 package com.routeshare.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.routeshare.model.TripOffer;
+import com.routeshare.model.User;
 import com.routeshare.model.enums.BookingStatus;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import com.routeshare.model.enums.LuggageSize;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
-/**
- * RideRequest represents a request submitted by a passenger for a carpool match.
- *
- * Demonstrates:
- * - Domain Modeling: Formalizes passenger requirements as constraints for matching.
- * - Temporal Modeling: Specifying start and end bounds of a pickup time window.
- */
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 @Entity
-@Table(name = "ride_requests")
+@Table(name="ride_requests")
 public class RideRequest {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
-
-    @NotNull(message = "Passenger is required")
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "passenger_id", nullable = false)
-    private User passenger;
-
+    @NotNull(message="Passenger is required")
+    @ManyToOne(optional=false)
+    @JoinColumn(name="passenger_id", nullable=false)
+    private @NotNull(message="Passenger is required") User passenger;
     @ManyToOne
-    @JoinColumn(name = "trip_offer_id")
+    @JoinColumn(name="trip_offer_id")
     @JsonIgnore
     private TripOffer tripOffer;
-
-    @NotBlank(message = "Origin cannot be empty")
-    @Column(nullable = false)
-    private String origin;
-
-    @NotBlank(message = "Destination cannot be empty")
-    @Column(nullable = false)
-    private String destination;
-
-    @FutureOrPresent(message = "Pickup time window start must be in the future")
-    @NotNull(message = "Pickup time window start is required")
-    @Column(nullable = false)
-    private LocalDateTime pickupTimeWindowStart;
-
-    @FutureOrPresent(message = "Pickup time window end must be in the future")
-    @NotNull(message = "Pickup time window end is required")
-    @Column(nullable = false)
-    private LocalDateTime pickupTimeWindowEnd;
-
-    /**
-     * Lifecycle state of this booking. Transitions are guarded by
-     * BookingLifecycleService (State pattern) — see BookingStatus for the
-     * legal transition relation.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @NotBlank(message="Origin cannot be empty")
+    @Column(nullable=false)
+    private @NotBlank(message="Origin cannot be empty") String origin;
+    @NotBlank(message="Destination cannot be empty")
+    @Column(nullable=false)
+    private @NotBlank(message="Destination cannot be empty") String destination;
+    @FutureOrPresent(message="Pickup time window start must be in the future")
+    @NotNull(message="Pickup time window start is required")
+    @Column(nullable=false)
+    private @FutureOrPresent(message="Pickup time window start must be in the future") @NotNull(message="Pickup time window start is required") LocalDateTime pickupTimeWindowStart;
+    @FutureOrPresent(message="Pickup time window end must be in the future")
+    @NotNull(message="Pickup time window end is required")
+    @Column(nullable=false)
+    private @FutureOrPresent(message="Pickup time window end must be in the future") @NotNull(message="Pickup time window end is required") LocalDateTime pickupTimeWindowEnd;
+    @Enumerated(value=EnumType.STRING)
+    @Column(nullable=false, columnDefinition="varchar(20) default 'PENDING'")
     private BookingStatus status = BookingStatus.PENDING;
+    @Enumerated(value=EnumType.STRING)
+    @Column(nullable=false, columnDefinition="varchar(10) default 'NONE'")
+    private LuggageSize luggageSize = LuggageSize.NONE;
 
     public RideRequest() {
     }
@@ -71,7 +67,7 @@ public class RideRequest {
     }
 
     public Long getId() {
-        return id;
+        return this.id;
     }
 
     public void setId(Long id) {
@@ -79,7 +75,7 @@ public class RideRequest {
     }
 
     public User getPassenger() {
-        return passenger;
+        return this.passenger;
     }
 
     public void setPassenger(User passenger) {
@@ -87,7 +83,7 @@ public class RideRequest {
     }
 
     public String getOrigin() {
-        return origin;
+        return this.origin;
     }
 
     public void setOrigin(String origin) {
@@ -95,7 +91,7 @@ public class RideRequest {
     }
 
     public String getDestination() {
-        return destination;
+        return this.destination;
     }
 
     public void setDestination(String destination) {
@@ -103,7 +99,7 @@ public class RideRequest {
     }
 
     public LocalDateTime getPickupTimeWindowStart() {
-        return pickupTimeWindowStart;
+        return this.pickupTimeWindowStart;
     }
 
     public void setPickupTimeWindowStart(LocalDateTime pickupTimeWindowStart) {
@@ -111,7 +107,7 @@ public class RideRequest {
     }
 
     public LocalDateTime getPickupTimeWindowEnd() {
-        return pickupTimeWindowEnd;
+        return this.pickupTimeWindowEnd;
     }
 
     public void setPickupTimeWindowEnd(LocalDateTime pickupTimeWindowEnd) {
@@ -119,15 +115,23 @@ public class RideRequest {
     }
 
     public BookingStatus getStatus() {
-        return status;
+        return this.status;
     }
 
     public void setStatus(BookingStatus status) {
         this.status = status;
     }
 
+    public LuggageSize getLuggageSize() {
+        return this.luggageSize;
+    }
+
+    public void setLuggageSize(LuggageSize luggageSize) {
+        this.luggageSize = luggageSize;
+    }
+
     public TripOffer getTripOffer() {
-        return tripOffer;
+        return this.tripOffer;
     }
 
     public void setTripOffer(TripOffer tripOffer) {
