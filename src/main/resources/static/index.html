@@ -235,6 +235,14 @@
                                     <input type="datetime-local" id="ride-window-end" required>
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label for="ride-luggage">Luggage <span class="label-hint">drivers may filter by this</span></label>
+                                <select id="ride-luggage">
+                                    <option value="NONE">No luggage</option>
+                                    <option value="SMALL">Small bag</option>
+                                    <option value="LARGE">Large luggage</option>
+                                </select>
+                            </div>
                             <button type="submit" id="btn-ride-submit" class="btn btn-primary btn-full">Post Request</button>
                         </form>
                     </div>
@@ -432,6 +440,41 @@
                         <button type="submit" class="btn btn-primary btn-full">Save Changes</button>
                         <button type="button" id="btn-profile-delete" class="btn btn-danger btn-full" style="margin-top: 10px;">Delete Account</button>
                     </form>
+                </div>
+
+                <!-- Driver-owned policy engine (FR-15 / FR-16) -->
+                <div id="profile-policy-section" style="display: none;">
+                    <div class="card card-narrow" style="margin-top: 22px;">
+                        <h3>My Travel Policy</h3>
+                        <p class="section-desc">Your rules decide who can book your rides. Candidates violating any rule are automatically refused, and remaining ones are ranked for you.</p>
+                        <div id="travel-rules-list" class="rules-list"></div>
+                        <form id="travel-rule-form" class="rule-form">
+                            <select id="travel-rule-type">
+                                <option value="MIN_PASSENGER_REPUTATION">Minimum passenger reputation…</option>
+                                <option value="SAME_DESTINATION_ONLY">Same destination only</option>
+                                <option value="NO_LARGE_LUGGAGE">No large luggage</option>
+                            </select>
+                            <input type="number" id="travel-rule-value" step="0.1" min="0" max="5" placeholder="e.g. 4.0" style="max-width: 110px;">
+                            <button type="submit" class="btn btn-secondary btn-sm">＋ Add rule</button>
+                        </form>
+                    </div>
+
+                    <div class="card card-narrow" style="margin-top: 22px;">
+                        <h3>My Pricing Policy</h3>
+                        <p class="section-desc">Compose your own fare rules — your rates, your surcharges, your loyalty discount. Without rules, platform defaults apply.</p>
+                        <div id="pricing-rules-list" class="rules-list"></div>
+                        <form id="pricing-rule-form" class="rule-form">
+                            <select id="pricing-rule-type">
+                                <option value="BASE_RATE_PER_KM">Base rate (€/km)…</option>
+                                <option value="RUSH_HOUR_SURCHARGE_PCT">Rush-hour surcharge (%)…</option>
+                                <option value="LATE_NIGHT_FEE_EUR">Late-night fee (€)…</option>
+                                <option value="SAME_DESTINATION_DISCOUNT_PCT">Same-destination discount (%)…</option>
+                                <option value="LOYALTY_TIER_DISCOUNT_PCT">Loyalty discount for GOLD+ riders (%)…</option>
+                            </select>
+                            <input type="number" id="pricing-rule-value" step="0.05" min="0" placeholder="value" required style="max-width: 110px;">
+                            <button type="submit" class="btn btn-secondary btn-sm">＋ Add rule</button>
+                        </form>
+                    </div>
                 </div>
 
                 <details class="developer-console-details">

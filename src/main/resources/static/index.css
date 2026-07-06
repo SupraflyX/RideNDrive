@@ -570,3 +570,41 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
     table { min-width: 480px; }
     .view-head { flex-direction: column; }
 }
+
+/* ===== Policy rule builders (Sprint 9: FR-15/FR-16) ===== */
+.rules-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.rule-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.85rem;
+}
+.rule-row .rule-desc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rule-chip {
+    background: var(--accent-soft); color: #c7d2fe;
+    font-size: 0.68rem; font-weight: 700;
+    padding: 3px 9px; border-radius: 999px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.rule-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rule-form select { flex: 1; min-width: 190px; }
+
+.score-chip {
+    background: var(--ok-soft); color: var(--ok);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    font-size: 0.7rem; font-weight: 800;
+    padding: 3px 10px; border-radius: 999px;
+    cursor: help;
+}
+.rank-banner {
+    background: var(--accent-soft);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 0.84rem;
+    color: #c7d2fe;
+    margin-bottom: 14px;
+}
+.luggage-chip { font-size: 0.72rem; color: var(--text-muted); }

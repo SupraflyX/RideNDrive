@@ -441,6 +441,7 @@ function setupFormListeners() {
         const destination = document.getElementById("ride-dest").value;
         const start = document.getElementById("ride-window-start").value;
         const end = document.getElementById("ride-window-end").value;
+        const luggageSize = document.getElementById("ride-luggage") ? document.getElementById("ride-luggage").value : "NONE";
 
         if (new Date(start) < new Date() || new Date(end) < new Date()) {
             showToast("Cannot request a ride in the past.");
@@ -456,7 +457,8 @@ function setupFormListeners() {
                     origin,
                     destination,
                     pickupTimeWindowStart: new Date(start).toISOString(),
-                    pickupTimeWindowEnd: new Date(end).toISOString()
+                    pickupTimeWindowEnd: new Date(end).toISOString(),
+                    luggageSize
                 })
             });
             if (res.ok) {
@@ -696,6 +698,7 @@ function renderPassengerRidesTable() {
                     <div class="ride-route">${r.origin} <span class="route-arrow">→</span> ${r.destination} ${bookingStatusBadge(status)}</div>
                     <div class="ride-meta">
                         <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                        ${r.luggageSize && r.luggageSize !== "NONE" ? `<span class="luggage-chip">🧳 ${r.luggageSize.toLowerCase()} luggage</span>` : ""}
                     </div>
                 </div>
                 <div class="ride-card-actions">${actions}</div>
@@ -774,7 +777,7 @@ function renderTripsTable() {
     });
 }
 
-function renderRidesTable() {
+async function renderRidesTable() {
     const list = document.getElementById("open-requests-list");
     if (!list) return;
 
@@ -787,19 +790,40 @@ function renderRidesTable() {
         return;
     }
 
-    list.innerHTML = activeRides.map(r => {
+    // FR-15: rank candidates through the driver's own policy for the next upcoming trip
+    let ranked = null;
+    let rankTrip = null;
+    if (currentUser && currentUser.role === "DRIVER") {
+        const myTrips = trips
+            .filter(t => t.driver && t.driver.id === currentUser.id && new Date(t.departureTime) >= now)
+            .sort((a, b) => new Date(a.departureTime) - new Date(b.departureTime));
+        if (myTrips.length > 0) {
+            rankTrip = myTrips[0];
+            try {
+                const res = await fetch(`/api/policies/rank/${currentUser.id}/${rankTrip.id}`);
+                if (res.ok) ranked = await res.json();
+            } catch (e) {
+                console.error("Ranking fetch failed:", e);
+            }
+        }
+    }
+
+    const requestCard = (r, scoreHtml) => {
         const pName = r.passenger ? r.passenger.name : "Unknown";
         const pid = r.passenger ? r.passenger.id : "null";
+        const rep = r.passenger && typeof r.passenger.reputationScore === "number"
+            ? ` · ⭐ ${r.passenger.reputationScore.toFixed(2)}` : "";
         return `
         <div class="ride-card">
             <div class="ride-card-top">
                 <div>
                     <div class="ride-route">
                         <span class="pax-avatar">${pName.charAt(0).toUpperCase()}</span>
-                        ${pName} needs: ${r.origin} <span class="route-arrow">→</span> ${r.destination}
+                        ${pName} needs: ${r.origin} <span class="route-arrow">→</span> ${r.destination} ${scoreHtml}
                     </div>
                     <div class="ride-meta">
                         <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                        <span>${r.luggageSize && r.luggageSize !== "NONE" ? `🧳 ${r.luggageSize.toLowerCase()} luggage` : "🧳 no luggage"}${rep}</span>
                     </div>
                 </div>
                 <div class="ride-card-actions">
@@ -810,7 +834,28 @@ function renderRidesTable() {
                 </div>
             </div>
         </div>`;
-    }).join("");
+    };
+
+    if (ranked && rankTrip) {
+        const filtered = activeRides.length - ranked.length;
+        const banner = `
+            <div class="rank-banner">
+                Ranked by <strong>your travel policy</strong> for trip ${rankTrip.origin} → ${rankTrip.destination}
+                — best matches first${filtered > 0 ? ` · <strong>${filtered}</strong> candidate(s) filtered out by your rules` : ""}.
+            </div>`;
+        if (ranked.length === 0) {
+            list.innerHTML = banner + `<div class="info-text">All open requests are blocked by your travel policy.</div>`;
+            return;
+        }
+        list.innerHTML = banner + ranked.map(rc => {
+            const bd = Object.entries(rc.breakdown || {}).map(([k, v]) => `${k}: ${v}`).join("  ·  ");
+            const chip = `<span class="score-chip" title="${bd}">match ${rc.score}</span>`;
+            return requestCard(rc.request, chip);
+        }).join("");
+        return;
+    }
+
+    list.innerHTML = activeRides.map(r => requestCard(r, "")).join("");
 }
 
 function renderRatingsTable() {
@@ -1962,8 +2007,16 @@ async function openProfileDashboard() {
         
         
         document.getElementById("profile-username").value = userDetails.name;
-        document.getElementById("profile-password").value = userDetails.password;
+        document.getElementById("profile-password").value = ""; // hashes are never sent by the API
         document.getElementById("profile-role").value = userDetails.role;
+
+        // FR-15/FR-16: driver-owned policy engine management
+        const policySection = document.getElementById("profile-policy-section");
+        if (policySection) {
+            const isDriver = userDetails.role === "DRIVER";
+            policySection.style.display = isDriver ? "block" : "none";
+            if (isDriver) loadDriverPolicies();
+        }
         
         const vehicleSection = document.getElementById("profile-vehicle-section");
         if (userDetails.role === "DRIVER") {
@@ -2166,7 +2219,7 @@ async function bookingTransition(rideId, action) {
     if (bookingActionInFlight) return;
     bookingActionInFlight = true;
     try {
-        const res = await fetch(`/api/bookings/${rideId}/${action}`, { method: "POST" });
+        const res = await fetch(`/api/bookings/${rideId}/${action}?actorId=${currentUser ? currentUser.id : ""}`, { method: "POST" });
         const data = await res.json();
         if (res.ok) {
             showToast(`Booking #${rideId} ${data.status.toLowerCase()}.`, "success");
@@ -2186,7 +2239,7 @@ async function bookingTransition(rideId, action) {
 async function completeTripLifecycle(tripId) {
     if (!(await showConfirm("Mark this trip as completed? All confirmed passengers will be notified to rate you.", "Complete Trip"))) return;
     try {
-        const res = await fetch(`/api/bookings/trip/${tripId}/complete`, { method: "POST" });
+        const res = await fetch(`/api/bookings/trip/${tripId}/complete?actorId=${currentUser ? currentUser.id : ""}`, { method: "POST" });
         const data = await res.json();
         if (res.ok) {
             logConsole(`[Booking] Trip #${tripId} completed — ${data.completedBookings} booking(s) closed.`, "text-success");
@@ -2302,4 +2355,141 @@ function openNotification(id, type) {
     } else if (type === "RATING") {
         navigateTo("view-profile");
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DRIVER POLICY ENGINE UI (Sprint 9: FR-15 / FR-16)
+   Travel rules (who may ride) + pricing rules (what the ride costs) —
+   composed by the driver, interpreted by the backend policy engine.
+   ═══════════════════════════════════════════════════════════════════ */
+const TRAVEL_RULE_LABELS = {
+    MIN_PASSENGER_REPUTATION: v => `Minimum passenger reputation ≥ ${v}`,
+    SAME_DESTINATION_ONLY: () => "Passengers must share my destination",
+    NO_LARGE_LUGGAGE: () => "No large luggage"
+};
+const PRICING_RULE_LABELS = {
+    BASE_RATE_PER_KM: v => `Base rate ${v} €/km`,
+    RUSH_HOUR_SURCHARGE_PCT: v => `Rush-hour surcharge +${v}%`,
+    LATE_NIGHT_FEE_EUR: v => `Late-night fee +${v} €`,
+    SAME_DESTINATION_DISCOUNT_PCT: v => `Same-destination discount −${v}%`,
+    LOYALTY_TIER_DISCOUNT_PCT: v => `Loyalty discount −${v}% for GOLD+ riders`
+};
+
+let policyFormsWired = false;
+
+async function loadDriverPolicies() {
+    if (!currentUser) return;
+    wirePolicyForms();
+    try {
+        const [tRes, pRes] = await Promise.all([
+            fetch(`/api/policies/travel/${currentUser.id}`),
+            fetch(`/api/policies/pricing/${currentUser.id}`)
+        ]);
+        renderRuleList("travel-rules-list", tRes.ok ? await tRes.json() : [],
+            TRAVEL_RULE_LABELS, "travel", "No travel rules yet — everyone with a feasible route may book.");
+        renderRuleList("pricing-rules-list", pRes.ok ? await pRes.json() : [],
+            PRICING_RULE_LABELS, "pricing", "No pricing rules yet — platform default pricing applies.");
+    } catch (e) {
+        console.error("Failed to load driver policies:", e);
+    }
+}
+
+function renderRuleList(containerId, rules, labels, kind, emptyText) {
+    const box = document.getElementById(containerId);
+    if (!box) return;
+    if (!rules || rules.length === 0) {
+        box.innerHTML = `<div class="info-text" style="padding: 10px;">${emptyText}</div>`;
+        return;
+    }
+    box.innerHTML = rules.map(r => {
+        const value = kind === "travel" ? r.numericValue : r.value;
+        const label = (labels[r.type] || (() => r.type))(value);
+        return `
+        <div class="rule-row">
+            <div class="rule-desc"><span class="rule-chip">${kind === "travel" ? "RULE" : "PRICE"}</span> ${label}</div>
+            <button class="btn btn-sm btn-danger" onclick="deletePolicyRule('${kind}', ${r.id})">Remove</button>
+        </div>`;
+    }).join("");
+}
+
+async function deletePolicyRule(kind, ruleId) {
+    try {
+        const res = await fetch(`/api/policies/${kind}/rule/${ruleId}`, { method: "DELETE" });
+        if (res.ok) {
+            showToast("Rule removed.", "success");
+            await loadDriverPolicies();
+        } else {
+            const data = await res.json();
+            showToast(data.error || "Could not remove rule.");
+        }
+    } catch (e) {
+        console.error("Rule delete failed:", e);
+    }
+}
+
+function wirePolicyForms() {
+    if (policyFormsWired) return;
+    const travelForm = document.getElementById("travel-rule-form");
+    const pricingForm = document.getElementById("pricing-rule-form");
+    if (!travelForm || !pricingForm) return;
+    policyFormsWired = true;
+
+    // The numeric threshold is only meaningful for MIN_PASSENGER_REPUTATION
+    const typeSel = document.getElementById("travel-rule-type");
+    const valInput = document.getElementById("travel-rule-value");
+    const syncValVisibility = () => {
+        valInput.style.display = typeSel.value === "MIN_PASSENGER_REPUTATION" ? "" : "none";
+    };
+    typeSel.addEventListener("change", syncValVisibility);
+    syncValVisibility();
+
+    travelForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!currentUser) return;
+        const payload = { type: typeSel.value, numericValue: valInput.value || "" };
+        try {
+            const res = await fetch(`/api/policies/travel/${currentUser.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast("Travel rule added — it now guards all your trips.", "success");
+                valInput.value = "";
+                await loadDriverPolicies();
+                await loadAllData(); // re-rank candidates
+            } else {
+                showToast(data.error || "Could not add rule.");
+            }
+        } catch (err) {
+            console.error("Travel rule add failed:", err);
+        }
+    });
+
+    pricingForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!currentUser) return;
+        const payload = {
+            type: document.getElementById("pricing-rule-type").value,
+            value: document.getElementById("pricing-rule-value").value
+        };
+        try {
+            const res = await fetch(`/api/policies/pricing/${currentUser.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast("Pricing rule added — your fares now follow your own policy.", "success");
+                document.getElementById("pricing-rule-value").value = "";
+                await loadDriverPolicies();
+            } else {
+                showToast(data.error || "Could not add rule.");
+            }
+        } catch (err) {
+            console.error("Pricing rule add failed:", err);
+        }
+    });
 }
