@@ -11,7 +11,7 @@ main branch" color="#4f46e5" fillcolor="#e0e7ff"]
 		build [label="Maven build
 (JDK 17)" color="#2563eb" fillcolor="#dbeafe"]
 		test [label="JUnit 5 suite
-(98 tests)" color="#2563eb" fillcolor="#dbeafe"]
+(121 tests)" color="#2563eb" fillcolor="#dbeafe"]
 		cov [label="JaCoCo coverage
 report artifact" color="#2563eb" fillcolor="#dbeafe"]
 	}
@@ -23,7 +23,8 @@ report artifact" color="#2563eb" fillcolor="#dbeafe"]
 app + MySQL 8" color="#059669" fillcolor="#d1fae5"]
 	}
 	run [label="Running system
-localhost:8080" color="#d97706" fillcolor="#fef3c7"]
+localhost:8080
+(/actuator/health monitored)" color="#d97706" fillcolor="#fef3c7"]
 	dev -> gh
 	gh -> build [label=" trigger "]
 	build -> test

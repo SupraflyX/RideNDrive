@@ -1,0 +1,39 @@
+digraph packages {
+	bgcolor=white fontname=Helvetica nodesep=0.5 pad=0.3 rankdir=TB ranksep=0.55
+	node [fontname=Helvetica fontsize=10 margin="0.18,0.1" shape=tab style=filled]
+	edge [color="#374151" fontname=Helvetica fontsize=8.5]
+	web [label="com.routeshare.controller
+(9 REST controllers)" color="#4f46e5" fillcolor="#e0e7ff"]
+	svc [label="com.routeshare.service
+(user, trip, ride, rating,
+reputation, booking lifecycle,
+notification, stop planning)" color="#2563eb" fillcolor="#dbeafe"]
+	policy [label="com.routeshare.service.policy
+(TravelPolicyService)" color="#2563eb" fillcolor="#dbeafe"]
+	pricing [label="com.routeshare.service.pricing
+(PricingEngine + 4 policies
++ RideContext)" color="#2563eb" fillcolor="#dbeafe"]
+	integ [label="com.routeshare.service.integration
+(MappingService, PaymentService
++ Google Maps / mock Stripe impls)" color="#2563eb" fillcolor="#dbeafe"]
+	repo [label="com.routeshare.repository
+(8 Spring Data interfaces)" color="#059669" fillcolor="#d1fae5"]
+	model [label="com.routeshare.model
+(8 JPA entities + enums + DTOs)" color="#d97706" fillcolor="#fef3c7"]
+	exc [label="com.routeshare.exception
+(MapApiException,
+GlobalExceptionHandler)" color="#dc2626" fillcolor="#fee2e2"]
+	static [label="static/ (SPA)
+index.html · index.css · index.js" color="#9333ea" fillcolor="#f3e8ff"]
+	static -> web [label=" JSON/REST "]
+	web -> svc
+	web -> policy
+	web -> pricing
+	svc -> repo
+	svc -> integ
+	policy -> repo
+	pricing -> model
+	svc -> model
+	repo -> model
+	web -> exc [style=dashed]
+}

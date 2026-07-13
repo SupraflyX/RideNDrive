@@ -1,0 +1,28 @@
+digraph pricing_activity {
+	bgcolor=white fontname=Helvetica nodesep=0.4 pad=0.3 rankdir=TB ranksep=0.42
+	node [fontname=Helvetica fontsize=10.5]
+	edge [color="#374151" fontname=Helvetica fontsize=9]
+	start [label="" fillcolor=black fixedsize=true shape=circle style=filled width=0.2]
+	a1 [label="Calculate Base Fare\n(distance x rate per km)" color="#4f46e5" fillcolor="#e0e7ff" margin="0.16,0.08" shape=box style="rounded,filled"]
+	q1 [label="Is Rush Hour?" color="#b45309" fillcolor="#fef3c7" shape=diamond style=filled fontsize=10]
+	a2 [label="Add Surcharge" color="#2563eb" fillcolor="#dbeafe" margin="0.16,0.08" shape=box style="rounded,filled"]
+	q2 [label="Is Late Night?" color="#b45309" fillcolor="#fef3c7" shape=diamond style=filled fontsize=10]
+	a3 [label="Add Night Fee" color="#2563eb" fillcolor="#dbeafe" margin="0.16,0.08" shape=box style="rounded,filled"]
+	q3 [label="Same Zone?" color="#b45309" fillcolor="#fef3c7" shape=diamond style=filled fontsize=10]
+	a4 [label="Apply Discount" color="#2563eb" fillcolor="#dbeafe" margin="0.16,0.08" shape=box style="rounded,filled"]
+	a5 [label="Return Final Price" color="#059669" fillcolor="#d1fae5" margin="0.16,0.08" shape=box style="rounded,filled"]
+	final [label="" fillcolor=black fixedsize=true shape=doublecircle style=filled width=0.18]
+
+	start -> a1
+	a1 -> q1
+	q1 -> a2 [label=" Yes "]
+	q1 -> q2 [label=" No "]
+	a2 -> q2
+	q2 -> a3 [label=" Yes "]
+	q2 -> q3 [label=" No "]
+	a3 -> q3
+	q3 -> a4 [label=" Yes "]
+	q3 -> a5 [label=" No "]
+	a4 -> a5
+	a5 -> final
+}

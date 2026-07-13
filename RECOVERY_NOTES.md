@@ -35,7 +35,7 @@ complete compiled build from just before the corruption — which made full reco
 ```
 mvn clean test
 ```
-Expected: **Tests run: 118, Failures: 0, Errors: 0** (first run downloads the new dependencies).
+Expected: **Tests run: 121, Failures: 0, Errors: 0** (first run downloads the new dependencies).
 
 ## Backup
 A full pre-recovery backup of the folder (excluding node_modules) was saved to the outputs area

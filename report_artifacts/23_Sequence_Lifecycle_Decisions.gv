@@ -1,0 +1,27 @@
+digraph seq_lifecycle {
+	bgcolor=white fontname=Helvetica nodesep=0.9 pad=0.3 rankdir=LR
+	node [color="#059669" fillcolor="#d1fae5" fontname=Helvetica fontsize=9.5 margin="0.12,0.06" shape=box style=filled]
+	edge [color="#374151" fontname=Helvetica fontsize=8.5]
+	Dr [label="Driver (SPA)"]
+	BC [label="Booking
+Controller"]
+	BL [label="BookingLifecycle
+Service (FSM)"]
+	NR [label="Notification
+Service"]
+	Px [label="Passenger (SPA)"]
+	Dr -> BC [label="1: POST /bookings/{id}/confirm
+?actorId=driver"]
+	BC -> BL [label="2: confirm(id, actor)"]
+	BL -> BL [label="3: authorize actor;
+guard PENDING→CONFIRMED
+(403 / 409 on violation)"]
+	BL -> NR [label="4: notify(passenger,
+BOOKING confirmed)"]
+	BC -> Dr [label="5: 200 {status: CONFIRMED}"]
+	Dr -> BC [label="6: POST /bookings/trip/{id}/complete"]
+	BL -> NR [label="7: notify each CONFIRMED
+passenger → rate driver"]
+	NR -> Px [label="8: 🔔 inbox poll
+→ rating eligibility (FR-10)"]
+}

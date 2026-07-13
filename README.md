@@ -15,6 +15,9 @@ RideNDrive connects drivers who are already making a journey with passengers loo
 - **In-App Notification Center** — Observer-pattern notifications for booking events and new ratings, with unread badge, inbox panel, and mark-as-read endpoints.
 - **Reputation System** — Time-decaying reputation tiers that incentivise reliable behaviour.
 - **BCrypt Password Security** — Salted BCrypt hashing for secure credential storage; secrets externalized via environment variables.
+- **Payment Ledger** — every (simulated) fare transfer persists as a referenced transaction (`PAY-2026-…`): passengers see receipts on their rides, drivers see earnings, both can pull their full statement.
+- **Driver Route Cockpit** — per-trip status (Scheduled / Action needed / Departed / Completed) and an on-demand route view: a side-effect-free DFS re-plan with metrics, stop timeline, and a live Google map of the multi-stop route.
+- **Demo World** — on an empty database (dev profile only) the app seeds Sicilian personas, trips, bookings in every lifecycle state, ratings, driver policies and payment history, so it never demos as a ghost town.
 - **CI/CD + Containerized Deployment** — GitHub Actions pipeline (build → test → coverage artifact → Docker image) and one-command `docker compose up` deployment.
 
 ---
@@ -87,13 +90,27 @@ mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 
 Runs on an embedded H2 file database (data persists in `./data/`). Inspect it live at `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:file:./data/routesharedb;AUTO_SERVER=TRUE`, user `sa`, empty password).
 
+### Demo accounts
+
+On first start with an empty database the seeder creates a demo world. All demo accounts use password **`demo123`**:
+
+| Persona | Role | Notable |
+|---|---|---|
+| `Giulia` | Driver | GOLD, Fiat 500X, travel + pricing rules configured, completed trip history |
+| `Marco` | Driver | SILVER, VW Golf, default pricing |
+| `Piera` | Driver | PREMIUM, Mini Cooper, same-destination-only rule |
+| `Alice` | Passenger | PREMIUM 4.91 — sails through every policy |
+| `Bruno` | Passenger | 3.40 reputation — blocked by Giulia's min-reputation rule (demo the veto!) |
+| `Chiara` | Passenger | GOLD — pending booking awaiting Giulia's decision |
+| `Davide` | Passenger | Fresh 5.00 — open request, rankable |
+
 ### Running Tests
 
 ```bash
 mvn test
 ```
 
-All **118 automated tests** should pass (JaCoCo coverage report in `target/site/jacoco/`).
+All **121 automated tests** should pass (JaCoCo coverage report in `target/site/jacoco/`).
 
 ---
 

@@ -1,0 +1,35 @@
+digraph layered_architecture {
+	bgcolor=white fontname=Helvetica nodesep=0.5 pad=0.3 rankdir=TB ranksep=0.55
+	node [fontname=Helvetica fontsize=11]
+	edge [color="#374151" fontname=Helvetica fontsize=9.5]
+
+	subgraph cluster_pres {
+		label="Presentation Layer" fontname="Helvetica-Bold" fontsize=12 color="#4f46e5" fillcolor="#eef2ff" style="rounded,filled" margin=14
+		html [label="index.html" color="#4f46e5" fillcolor="#e0e7ff" margin="0.18,0.09" shape=box style="rounded,filled"]
+		css  [label="index.css"  color="#4f46e5" fillcolor="#e0e7ff" margin="0.18,0.09" shape=box style="rounded,filled"]
+		js   [label="index.js"   color="#4f46e5" fillcolor="#e0e7ff" margin="0.18,0.09" shape=box style="rounded,filled"]
+	}
+	subgraph cluster_ctrl {
+		label="Controller Layer" fontname="Helvetica-Bold" fontsize=12 color="#2563eb" fillcolor="#eff6ff" style="rounded,filled" margin=14
+		ctrl [label="Spring REST Controllers" color="#2563eb" fillcolor="#dbeafe" margin="0.22,0.11" shape=box style="rounded,filled"]
+	}
+	subgraph cluster_svc {
+		label="Service Layer" fontname="Helvetica-Bold" fontsize=12 color="#059669" fillcolor="#ecfdf5" style="rounded,filled" margin=14
+		svc [label="Business Logic Services" color="#059669" fillcolor="#d1fae5" margin="0.22,0.11" shape=box style="rounded,filled"]
+	}
+	subgraph cluster_repo {
+		label="Repository Layer" fontname="Helvetica-Bold" fontsize=12 color="#b45309" fillcolor="#fffbeb" style="rounded,filled" margin=14
+		repo [label="Spring Data JPA Repositories" color="#b45309" fillcolor="#fef3c7" margin="0.22,0.11" shape=box style="rounded,filled"]
+	}
+	subgraph cluster_db {
+		label="Database Layer" fontname="Helvetica-Bold" fontsize=12 color="#6b7280" fillcolor="#f9fafb" style="rounded,filled" margin=14
+		db [label="MySQL Database" color="#6b7280" fillcolor="#f3f4f6" margin="0.22,0.11" shape=cylinder style=filled]
+	}
+
+	js -> ctrl [label=" HTTP / JSON (REST) "]
+	ctrl -> svc [label=" delegates to "]
+	svc -> repo [label=" persists via "]
+	repo -> db [label=" JDBC / Hibernate ORM "]
+	html -> js [style=dotted arrowhead=none]
+	css -> html [style=dotted arrowhead=none]
+}

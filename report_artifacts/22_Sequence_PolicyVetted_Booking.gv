@@ -1,0 +1,39 @@
+digraph seq_policy {
+	bgcolor=white fontname=Helvetica nodesep=0.9 pad=0.3 rankdir=TB
+	node [color="#4f46e5" fillcolor="#e0e7ff" fontname=Helvetica fontsize=9.5 margin="0.12,0.06" shape=box style=filled]
+	edge [color="#374151" fontname=Helvetica fontsize=8.5]
+	rankdir=LR
+	P [label="Passenger
+(SPA)"]
+	C [label="TripPlanning
+Controller"]
+	T [label="TravelPolicy
+Service"]
+	D [label="StopPlanning
+Service (DFS)"]
+	E [label="Pricing
+Engine"]
+	Y [label="Payment
+Service"]
+	N [label="Notification
+Service"]
+	P -> C [label="1: POST /book-passenger
+(origin, dest, luggage)"]
+	C -> T [label="2: evaluate(driver rules,
+candidate)"]
+	T -> C [label="3: PolicyDecision
+(veto ⇒ 403 + violations)"]
+	C -> D [label="4: planRoute(offer,
+ALL active + new)"]
+	D -> C [label="5: StopSequenceResult
+(infeasible ⇒ FAILED_ROUTING)"]
+	C -> E [label="6: calculateFare(context,
+driver pricing rules)"]
+	E -> C [label="7: PricingResult + audit"]
+	C -> Y [label="8: verifyIdentity,
+processPayment"]
+	C -> N [label="9: notify(driver,
+BOOKING)"]
+	C -> P [label="10: 200 routing+pricing
+status CONFIRMED"]
+}

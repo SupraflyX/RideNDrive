@@ -20,6 +20,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * TripOfferController exposes CRUD over driver trip offers (FR-5). Updates that would
+ * break the routing of already-booked passengers are rejected (re-planned via the DFS).
+ *
+ * Note: recovered from bytecode after a disk failure (see RECOVERY_NOTES).
+ */
 @RestController
 @RequestMapping(value={"/api/trips"})
 public class TripOfferController {
@@ -60,16 +66,16 @@ public class TripOfferController {
             if (boundPassengers != null && !boundPassengers.isEmpty()) {
                 List<Vehicle> vehicles = this.vehicleService.findByDriverId(existingOffer.getDriver().getId());
                 if (vehicles.isEmpty()) {
-                    return ResponseEntity.badRequest().body((Object)Map.of((Object)"error", (Object)"Driver has no vehicle registered."));
+                    return ResponseEntity.badRequest().body(Map.of("error", "Driver has no vehicle registered."));
                 }
                 Vehicle vehicle = (Vehicle)vehicles.get(0);
                 TripOffer proposedOffer = new TripOffer(existingOffer.getDriver(), tripOfferDetails.getOrigin(), tripOfferDetails.getDestination(), tripOfferDetails.getDepartureTime(), tripOfferDetails.getMaxStops(), tripOfferDetails.getMaxDetourMinutes());
                 StopSequenceResult routingResult = this.stopPlanningService.planRoute(proposedOffer, boundPassengers, vehicle);
                 if (!routingResult.isFeasible()) {
-                    return ResponseEntity.badRequest().body((Object)Map.of((Object)"error", (Object)"Cannot edit trip: the proposed changes make it impossible to serve your currently booked passengers."));
+                    return ResponseEntity.badRequest().body(Map.of("error", "Cannot edit trip: the proposed changes make it impossible to serve your currently booked passengers."));
                 }
             }
-            return ResponseEntity.ok((Object)this.tripOfferService.update(id, tripOfferDetails));
+            return ResponseEntity.ok(this.tripOfferService.update(id, tripOfferDetails));
         }
         catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
