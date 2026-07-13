@@ -608,3 +608,42 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
     margin-bottom: 14px;
 }
 .luggage-chip { font-size: 0.72rem; color: var(--text-muted); }
+
+/* ===== Realness pass (Sprint 9+): swap, reputation card, stats, route panel ===== */
+.swap-btn {
+    align-self: center;
+    background: var(--bg-elevated);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    width: 34px; height: 34px;
+    font-size: 1rem; cursor: pointer; color: var(--text-secondary);
+    transition: transform 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+.swap-btn:hover { transform: rotate(180deg); color: var(--accent-2); }
+
+.rep-card { background: radial-gradient(400px 160px at 12% 0%, rgba(99,102,241,0.20), transparent 60%), var(--bg-card); }
+.rep-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.rep-score { font-size: 2rem; font-weight: 800; }
+.rep-sub { color: var(--text-secondary); font-size: 0.85rem; }
+.rep-progress { height: 8px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 10px 0 6px 0; }
+.rep-progress > div { height: 100%; background: var(--accent-grad); border-radius: 999px; }
+.rep-progress-label { font-size: 0.75rem; color: var(--text-muted); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 14px; }
+.stat-box { background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat-box .stat-value { font-size: 1.15rem; font-weight: 800; }
+.stat-box .stat-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.trip-status { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; border: 1px solid transparent; }
+.trip-Scheduled     { background: var(--accent-soft); color: #a5b4fc; border-color: rgba(99,102,241,0.35); }
+.trip-ActionNeeded  { background: var(--warn-soft); color: var(--warn); border-color: rgba(251,191,36,0.35); }
+.trip-Departed      { background: rgba(148,163,184,0.14); color: #94a3b8; border-color: rgba(148,163,184,0.3); }
+.trip-Completed     { background: var(--ok-soft); color: var(--ok); border-color: rgba(52,211,153,0.35); }
+
+.trip-route-panel { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.trip-route-map { height: 260px; border-radius: var(--radius-md); border: 1px solid var(--line); overflow: hidden; margin-top: 10px; }
+.route-stops { border-left: 2px dashed var(--line-strong); padding-left: 12px; margin: 10px 0 0 4px; font-size: 0.82rem; }
+.route-stops div { margin-bottom: 6px; }
+.pay-line { font-size: 0.78rem; color: var(--ok); margin-top: 6px; }
+.pay-line.held { color: var(--warn); }

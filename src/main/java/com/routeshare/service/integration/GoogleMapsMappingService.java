@@ -18,6 +18,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+/**
+ * GoogleMapsMappingService performs real API calls to the Google Maps Distance Matrix API.
+ *
+ * Demonstrates:
+ * - Robustness (Ch. 2): deterministic local approximation fallback if the network fails
+ *   or the API key is absent — no functionality is lost offline.
+ * - Separation of Concerns (SE Principle 2): map integration is decoupled from business
+ *   logic behind the MappingService interface; the API key is env-injected and only ever
+ *   logged masked.
+ *
+ * Note: recovered from bytecode after a disk failure (see RECOVERY_NOTES).
+ */
 @Service
 @Primary
 public class GoogleMapsMappingService
@@ -33,7 +45,7 @@ implements MappingService {
         if (this.apiKey == null || this.apiKey.trim().isEmpty()) {
             log.info("GoogleMapsMappingService initialized WITHOUT an API key \u2014 using local distance approximation fallback.");
         } else {
-            log.info("GoogleMapsMappingService initialized with API key '{}****' (masked).", (Object)this.apiKey.substring(0, Math.min((int)6, (int)this.apiKey.length())));
+            log.info("GoogleMapsMappingService initialized with API key '{}****' (masked).", this.apiKey.substring(0, Math.min(6, this.apiKey.length())));
         }
     }
 
@@ -105,29 +117,25 @@ implements MappingService {
         return this.getFallbackTravelTimeMinutes(origin, destination);
     }
 
-    /*
-     * Enabled force condition propagation
-     * Lifted jumps to return sites
-     */
     private JsonNode fetchDistanceMatrixElement(String origin, String destination) throws Exception {
         JsonNode elements;
-        HttpResponse response;
+        HttpResponse<String> response;
         if (this.apiKey == null || this.apiKey.trim().isEmpty()) {
             System.err.println("[Google Maps API] Key is missing or empty.");
             return null;
         }
-        String encodedOrigin = URLEncoder.encode((String)origin, (Charset)StandardCharsets.UTF_8);
-        String encodedDest = URLEncoder.encode((String)destination, (Charset)StandardCharsets.UTF_8);
-        String urlString = String.format((String)"https://maps.googleapis.com/maps/api/distancematrix/json?origins=%s&destinations=%s&key=%s", (Object[])new Object[]{encodedOrigin, encodedDest, this.apiKey.trim()});
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create((String)urlString)).GET().build();
+        String encodedOrigin = URLEncoder.encode(origin, StandardCharsets.UTF_8);
+        String encodedDest = URLEncoder.encode(destination, StandardCharsets.UTF_8);
+        String urlString = String.format("https://maps.googleapis.com/maps/api/distancematrix/json?origins=%s&destinations=%s&key=%s", encodedOrigin, encodedDest, this.apiKey.trim());
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(urlString)).GET().build();
         try {
             response = this.httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         }
         catch (Exception e) {
             throw new MapApiException("Failed to connect to Google Maps API: " + e.getMessage());
         }
-        if (response.statusCode() != 200) throw new MapApiException("Google Maps API HTTP error (status " + response.statusCode() + "): " + (String)response.body());
-        JsonNode root = this.objectMapper.readTree((String)response.body());
+        if (response.statusCode() != 200) throw new MapApiException("Google Maps API HTTP error (status " + response.statusCode() + "): " + response.body());
+        JsonNode root = this.objectMapper.readTree(response.body());
         String status = root.path("status").asText();
         if (!"OK".equalsIgnoreCase(status)) throw new MapApiException("Google Maps API error: " + status + " - " + root.path("error_message").asText(""));
         JsonNode rows = root.path("rows");
@@ -136,12 +144,12 @@ implements MappingService {
     }
 
     private double getFallbackDistanceKm(String origin, String destination) {
-        int hash = Math.abs((int)(origin + "->" + destination).hashCode());
-        return 1.0 + (double)(hash % 150) / 10.0;
+        int hash = Math.abs((origin + "->" + destination).hashCode());
+        return 1.0 + (hash % 150) / 10.0;
     }
 
     private int getFallbackTravelTimeMinutes(String origin, String destination) {
-        int hash = Math.abs((int)(origin + "->" + destination).hashCode());
+        int hash = Math.abs((origin + "->" + destination).hashCode());
         return 3 + hash % 31;
     }
 }

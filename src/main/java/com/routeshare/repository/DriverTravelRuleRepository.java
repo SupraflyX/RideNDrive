@@ -6,8 +6,17 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+/**
+ * DriverTravelRuleRepository persists the rules of each driver's travel policy (FR-15).
+ *
+ * Demonstrates:
+ * - Repository Pattern with derived queries: the enabled rule set is fetched
+ *   in evaluation (priority) order directly by the database.
+ */
 @Repository
 public interface DriverTravelRuleRepository extends JpaRepository<DriverTravelRule, Long> {
+
     List<DriverTravelRule> findByDriverIdOrderByPriorityAsc(Long driverId);
+
     List<DriverTravelRule> findByDriverIdAndEnabledTrueOrderByPriorityAsc(Long driverId);
 }

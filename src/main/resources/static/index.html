@@ -6,7 +6,10 @@
     <title>RideNDrive — Share the ride, split the cost</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="index.css?v=4">
+    <meta name="theme-color" content="#0a0e17">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236366f1'/%3E%3Ctext x='50' y='68' font-size='56' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="index.css?v=6">
     <!-- Google Maps JS SDK is loaded dynamically by index.js using the key
          served from /api/config (GOOGLE_MAPS_API_KEY env variable) — never hardcoded. -->
 </head>
@@ -110,6 +113,8 @@
 </div>
 
 <!-- ═══════════════════ APP ═══════════════════ -->
+<datalist id="location-suggestions"></datalist>
+
 <div id="app-wrapper" class="app-wrapper" style="display: none;">
 
     <aside class="app-sidebar">
@@ -179,13 +184,14 @@
             <!-- ── PASSENGER: Find a Ride (landing) ── -->
             <section id="view-search-rides" class="view-section">
                 <div class="search-hero">
-                    <h1>Where to?</h1>
+                    <h1 id="search-hero-title">Where to?</h1>
                     <p>Find drivers already going your way — pay a fair share, not a fare.</p>
                     <form id="search-rides-form" class="search-bar">
                         <div class="search-field">
                             <label for="search-origin">From</label>
                             <input type="text" id="search-origin" required placeholder="Messina, Italy">
                         </div>
+                        <button type="button" class="swap-btn" title="Swap origin and destination" onclick="swapInputs('search-origin','search-dest')">⇄</button>
                         <div class="search-field">
                             <label for="search-dest">To</label>
                             <input type="text" id="search-dest" required placeholder="Catania, Italy">
@@ -401,6 +407,7 @@
 
             <!-- ── SHARED: Profile ── -->
             <section id="view-profile" class="view-section" style="display: none;">
+                <div id="profile-rep-card" class="card card-narrow rep-card" style="margin-bottom: 22px;"></div>
                 <div class="card card-narrow">
                     <h3>Profile</h3>
                     <p class="section-desc">Your account and vehicle details.</p>
@@ -567,6 +574,6 @@
     </div>
 </div>
 
-<script src="index.js?v=4"></script>
+<script src="index.js?v=6"></script>
 </body>
 </html>

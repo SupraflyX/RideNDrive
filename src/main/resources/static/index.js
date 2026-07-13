@@ -602,6 +602,14 @@ async function loadAllData() {
         renderDriverVehicleInfo();
         
         populateDropdowns();
+
+        // Realness pass: payments, autocomplete, smart defaults, greeting
+        await loadMyPayments();
+        refreshLocationSuggestions();
+        attachAutocomplete();
+        applySmartDefaults();
+        applyGreeting();
+        renderPassengerRidesTable(); // re-render with payment receipts attached
     } catch (err) {
         console.error("Error loading database records", err);
     }
@@ -639,19 +647,25 @@ function renderDriverTripsTable() {
                         </div>`;
             }).join("");
 
+        const [stLabel, stClass] = tripStatus(t);
+        const myVehicle = (vehicles || []).find(v => v.driver && v.driver.id === currentUser.id);
+        const capacity = myVehicle ? myVehicle.capacity : "?";
+        const seatsTaken = pax.filter(p => (p.status || "PENDING") === "CONFIRMED").length;
         return `
         <div class="ride-card">
             <div class="ride-card-top">
                 <div>
-                    <div class="ride-route">${t.origin} <span class="route-arrow">→</span> ${t.destination}</div>
+                    <div class="ride-route">${t.origin} <span class="route-arrow">→</span> ${t.destination} <span class="trip-status ${stClass}">${stLabel}</span></div>
                     <div class="ride-meta">
                         <span>🕑 ${formatDateTime(t.departureTime)}</span>
+                        <span>🚘 ${seatsTaken}/${capacity} seats booked</span>
                         <span>⛳ max ${t.maxStops} pickups</span>
                         <span>↺ ${t.maxDetourMinutes} min detour budget</span>
                         ${pending > 0 ? `<span class="text-warning">● ${pending} awaiting your decision</span>` : ""}
                     </div>
                 </div>
                 <div class="ride-card-actions">
+                    <button class="btn btn-sm btn-secondary route-trip-btn" data-id="${t.id}">🗺 Route</button>
                     ${hasConfirmed ? `<button class="btn btn-sm btn-primary complete-trip-btn" data-id="${t.id}">🏁 Complete</button>` : ""}
                     <button class="btn btn-sm btn-secondary edit-trip-btn" data-id="${t.id}">Edit</button>
                     <button class="btn btn-sm btn-danger delete-trip-btn" data-id="${t.id}">Cancel</button>
@@ -672,6 +686,8 @@ function renderDriverTripsTable() {
         btn.addEventListener("click", e => bookingTransition(parseInt(e.currentTarget.getAttribute("data-id")), "reject")));
     list.querySelectorAll(".complete-trip-btn").forEach(btn =>
         btn.addEventListener("click", e => completeTripLifecycle(parseInt(e.currentTarget.getAttribute("data-id")))));
+    list.querySelectorAll(".route-trip-btn").forEach(btn =>
+        btn.addEventListener("click", e => toggleTripRoute(parseInt(e.currentTarget.getAttribute("data-id")), e.currentTarget)));
 }
 
 function renderPassengerRidesTable() {
@@ -700,6 +716,9 @@ function renderPassengerRidesTable() {
                         <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
                         ${r.luggageSize && r.luggageSize !== "NONE" ? `<span class="luggage-chip">🧳 ${r.luggageSize.toLowerCase()} luggage</span>` : ""}
                     </div>
+                    ${(() => { const pay = paymentForRequest(r.id); return pay
+                        ? `<div class="pay-line ${pay.status === "HELD" ? "held" : ""}">${pay.status === "HELD" ? "⏳ Payment on hold" : "✔ Paid " + fmtEUR(pay.amount)} · ${pay.reference}</div>`
+                        : ""; })()}
                 </div>
                 <div class="ride-card-actions">${actions}</div>
             </div>
@@ -1013,16 +1032,20 @@ function renderSearchResults(matches, searchPayload) {
                         <p style="margin: 2px 0; font-size: 0.78rem; color: var(--text-secondary);">${match.vehicleInfo}</p>
                     </div>
                     <div style="text-align: right;">
-                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--accent-success);">$${match.pricing.finalFare.toFixed(2)}</span>
+                        <span style="font-size: 1.25rem; font-weight: 700; color: var(--accent-success);">${fmtEUR(match.pricing.finalFare)}</span>
+                        <p style="margin: 2px 0 0 0; font-size: 0.7rem; color: var(--text-muted);">your fare</p>
                     </div>
                 </div>
-                
-                <div class="grid-2col-nested" style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 15px; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 8px 0;">
+
+                <div class="grid-2col-nested" style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; border-top: 1px solid var(--border-color); padding: 8px 0 4px 0;">
                     <div>📅 Departure: <strong>${formatDateTime(match.departureTime)}</strong></div>
-                    <div>⏱️ Total Time: <strong>${match.totalTimeMinutes} mins</strong></div>
-                    <div>🚗 Total Distance: <strong>${match.totalDistanceKm.toFixed(1)} km</strong></div>
-                    <div>👥 Spots Available: <strong>${match.spotsAvailable} seats</strong></div>
+                    <div>⏱️ Your ride: <strong>${match.yourRide && match.yourRide.inCarTimeMinutes != null ? "≈ " + match.yourRide.inCarTimeMinutes + " min" : "–"}</strong></div>
+                    <div>🚗 Your distance: <strong>${match.yourRide && match.yourRide.distanceKm != null ? match.yourRide.distanceKm + " km" : "–"}</strong></div>
+                    <div>👥 ${match.coPassengers > 0 ? `Sharing with <strong>${match.coPassengers}</strong> rider${match.coPassengers > 1 ? "s" : ""} · ` : ""}<strong>${match.spotsAvailable}</strong> seat${match.spotsAvailable !== 1 ? "s" : ""} left</div>
                 </div>
+                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    Part of ${match.driverName}'s trip ${match.routing && match.routing.sequence && match.routing.sequence.length ? match.routing.sequence[0].replace("Origin: ", "") : ""} → ${match.routing && match.routing.sequence && match.routing.sequence.length ? match.routing.sequence[match.routing.sequence.length - 1].replace("Destination: ", "") : ""} (${match.totalDistanceKm.toFixed(0)} km, ${match.totalTimeMinutes} min in total${match.yourRide && match.yourRide.stopsBeforeDropoff > 0 ? `; ${match.yourRide.stopsBeforeDropoff} stop${match.yourRide.stopsBeforeDropoff > 1 ? "s" : ""} before your drop-off` : ""}).
+                </p>
 
                 <div style="margin-bottom: 15px;">
                     <h5 style="margin: 0 0 6px 0; font-size: 0.85rem; color: var(--text-secondary);">Route Stops:</h5>
@@ -1108,9 +1131,9 @@ async function bookTrip(tripOfferId, searchPayload) {
             data.passengers.forEach(p => {
                 logConsole(`[Stripe Verification] User ID ${p.passengerId} (${p.passengerName}): Identity verification returned ${p.identityVerified}`, "text-success");
                 if (p.paymentCleared) {
-                    logConsole(`[Stripe Transactions] Transferred split amount $${p.pricing.finalFare.toFixed(2)} to Driver`, "text-success");
+                    logConsole(`[Stripe Transactions] Transferred split amount €${p.pricing.finalFare.toFixed(2)} to Driver`, "text-success");
                 } else {
-                    logConsole(`[Stripe Transactions] FAILED transaction split of $${p.pricing.finalFare.toFixed(2)} from User ${p.passengerId}`, "text-error");
+                    logConsole(`[Stripe Transactions] FAILED transaction split of €${p.pricing.finalFare.toFixed(2)} from User ${p.passengerId}`, "text-error");
                 }
             });
         }
@@ -1133,11 +1156,12 @@ function renderBookingConfirmation(data, trip, durationMs) {
     
     if (!routing) return;
 
+    const receipt = data.passengers && data.passengers[0] && data.passengers[0].payment;
     let html = `
         <div class="result-header">
             <div>
                 <h3>Booking Confirmation Summary</h3>
-                <p style="font-size: 0.78rem; color: var(--text-secondary);">Processed in <strong>${durationMs}ms</strong></p>
+                <p style="font-size: 0.78rem; color: var(--text-secondary);">Processed in <strong>${durationMs}ms</strong>${receipt ? ` · Payment ${receipt.status === "HELD" ? "on hold" : "completed"}: <strong>${fmtEUR(receipt.amount)}</strong> · ref <strong>${receipt.reference}</strong>` : ""}</p>
             </div>
             <span class="result-status-badge ${routing.feasible ? 'status-success' : 'status-failed'}">
                 ${routing.feasible ? 'BOOKING CONFIRMED' : 'BOOKING FAILED'}
@@ -1228,11 +1252,11 @@ function renderBookingConfirmation(data, trip, durationMs) {
                 <div class="passenger-pricing-card">
                     <div class="pricing-card-header">
                         <span class="pricing-card-name">${p.passengerName}</span>
-                        <span class="pricing-card-fare">$${p.pricing.finalFare.toFixed(2)}</span>
+                        <span class="pricing-card-fare">${fmtEUR(p.pricing.finalFare)}</span>
                     </div>
                     <div class="pricing-details-grid">
                         <div>Base Fare:</div>
-                        <div style="text-align: right;">$${p.pricing.baseFare.toFixed(2)}</div>
+                        <div style="text-align: right;">${fmtEUR(p.pricing.baseFare)}</div>
                         <div>Reputation:</div>
                         <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${p.incentiveTier})</div>
                         <div>COTS Stripe:</div>
@@ -1372,11 +1396,11 @@ function renderPlannerOutput(data, trip, durationMs) {
                 <div class="passenger-pricing-card">
                     <div class="pricing-card-header">
                         <span class="pricing-card-name">${p.passengerName}</span>
-                        <span class="pricing-card-fare">$${p.pricing.finalFare.toFixed(2)}</span>
+                        <span class="pricing-card-fare">${fmtEUR(p.pricing.finalFare)}</span>
                     </div>
                     <div class="pricing-details-grid">
                         <div>Base Fare:</div>
-                        <div style="text-align: right;">$${p.pricing.baseFare.toFixed(2)}</div>
+                        <div style="text-align: right;">${fmtEUR(p.pricing.baseFare)}</div>
                         <div>Reputation:</div>
                         <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${p.incentiveTier})</div>
                         <div>COTS Stripe:</div>
@@ -2011,6 +2035,9 @@ async function openProfileDashboard() {
         document.getElementById("profile-role").value = userDetails.role;
 
         // FR-15/FR-16: driver-owned policy engine management
+        await loadMyPayments();
+        renderReputationCard(userDetails);
+
         const policySection = document.getElementById("profile-policy-section");
         if (policySection) {
             const isDriver = userDetails.role === "DRIVER";
@@ -2492,4 +2519,196 @@ function wirePolicyForms() {
             console.error("Pricing rule add failed:", err);
         }
     });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   REALNESS PASS — autocomplete, smart defaults, greeting, € format,
+   payment visibility, reputation card & stats, driver route cockpit.
+   ═══════════════════════════════════════════════════════════════════ */
+const SICILIAN_PLACES = ["Messina","Catania","Palermo","Taormina","Siracusa","Milazzo","Villafranca","Barcellona P.G.","Capo d'Orlando","Giardini Naxos","Acireale","Enna","Ragusa","Trapani","Cefalù","Messina Nord","Messina Sud","Catania Centro"];
+let myPayments = [];
+
+function fmtEUR(x) {
+    return "€" + (Math.round((Number(x) || 0) * 100) / 100).toFixed(2);
+}
+
+function greeting() {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
+function refreshLocationSuggestions() {
+    const dl = document.getElementById("location-suggestions");
+    if (!dl) return;
+    const seen = new Set(SICILIAN_PLACES);
+    (trips || []).forEach(t => { seen.add(t.origin); seen.add(t.destination); });
+    (rides || []).forEach(r => { seen.add(r.origin); seen.add(r.destination); });
+    dl.innerHTML = [...seen].filter(Boolean).sort()
+        .map(p => `<option value="${p}"></option>`).join("");
+}
+
+function attachAutocomplete() {
+    ["search-origin","search-dest","ride-origin","ride-dest","trip-origin","trip-dest",
+     "edit-trip-origin","edit-trip-dest","edit-ride-origin","edit-ride-dest"]
+        .forEach(id => { const el = document.getElementById(id); if (el) el.setAttribute("list", "location-suggestions"); });
+}
+
+function swapInputs(aId, bId) {
+    const a = document.getElementById(aId), b = document.getElementById(bId);
+    if (!a || !b) return;
+    const tmp = a.value; a.value = b.value; b.value = tmp;
+}
+
+function toLocalInputValue(d) {
+    const p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function applySmartDefaults() {
+    const tomorrow8 = new Date(Date.now() + 24*3600*1000); tomorrow8.setHours(8, 0, 0, 0);
+    const sd = document.getElementById("search-date");
+    if (sd && !sd.value) sd.value = toLocalInputValue(tomorrow8).slice(0, 10);
+    const tt = document.getElementById("trip-time");
+    if (tt && !tt.value) tt.value = toLocalInputValue(tomorrow8);
+    const ws = document.getElementById("ride-window-start");
+    const we = document.getElementById("ride-window-end");
+    if (ws && !ws.value) { const s = new Date(tomorrow8); s.setMinutes(-30); ws.value = toLocalInputValue(s); }
+    if (we && !we.value) { const e = new Date(tomorrow8); e.setHours(10, 0); we.value = toLocalInputValue(e); }
+}
+
+function applyGreeting() {
+    if (!currentUser) return;
+    const hero = document.getElementById("search-hero-title");
+    if (hero && currentUser.role === "PASSENGER") hero.textContent = `${greeting()}, ${currentUser.name} — where to?`;
+}
+
+async function loadMyPayments() {
+    if (!currentUser) { myPayments = []; return; }
+    try {
+        const res = await fetch(`/api/payments/user/${currentUser.id}`);
+        myPayments = res.ok ? await res.json() : [];
+    } catch (e) { myPayments = []; }
+}
+
+function paymentForRequest(requestId) {
+    return myPayments.find(p => p.rideRequestId === requestId);
+}
+
+/* ── Reputation card + role stats in Profile ── */
+function tierProgress(score) {
+    const tiers = [["STANDARD", 0, 4.0, "SILVER"], ["SILVER", 4.0, 4.5, "GOLD"], ["GOLD", 4.5, 4.8, "PREMIUM_PRICING"], ["PREMIUM_PRICING", 4.8, 5.0, null]];
+    for (const [name, lo, hi, next] of tiers) {
+        if (score < hi || !next) {
+            const pct = Math.min(100, Math.max(0, ((score - lo) / (hi - lo)) * 100));
+            return { pct: Math.round(pct), next, missing: next ? (hi - score).toFixed(2) : null };
+        }
+    }
+    return { pct: 100, next: null, missing: null };
+}
+
+function renderReputationCard(userDetails) {
+    const card = document.getElementById("profile-rep-card");
+    if (!card || !userDetails) return;
+    const score = userDetails.reputationScore ?? 5.0;
+    const tier = userDetails.incentiveTier || "STANDARD";
+    const prog = tierProgress(score);
+    const isDriver = userDetails.role === "DRIVER";
+
+    const earned = myPayments.filter(p => p.payee && p.payee.id === userDetails.id && p.status === "COMPLETED")
+        .reduce((s, p) => s + p.amount, 0);
+    const spent = myPayments.filter(p => p.payer && p.payer.id === userDetails.id && p.status === "COMPLETED")
+        .reduce((s, p) => s + p.amount, 0);
+    const myTrips = (trips || []).filter(t => t.driver && t.driver.id === userDetails.id);
+    const completedCarried = myTrips.reduce((s, t) => s + (t.passengers || []).filter(p => p.status === "COMPLETED").length, 0);
+    const myRides = (rides || []).filter(r => r.passenger && r.passenger.id === userDetails.id);
+    const ridesDone = myRides.filter(r => r.status === "COMPLETED").length;
+
+    const stats = isDriver ? [
+        [fmtEUR(earned), "earned"],
+        [myTrips.length, "trips published"],
+        [completedCarried, "passengers carried"],
+        [myPayments.filter(p => p.payee && p.payee.id === userDetails.id).length, "payments received"],
+    ] : [
+        [fmtEUR(spent), "spent on rides"],
+        [ridesDone, "rides completed"],
+        [myRides.length, "total requests"],
+        [tier === "GOLD" || tier === "PREMIUM_PRICING" ? "yes" : "not yet", "loyalty discounts"],
+    ];
+
+    card.innerHTML = `
+        <div class="rep-head">
+            <div class="session-avatar" style="width:46px;height:46px;font-size:1.2rem;">${(userDetails.name||"?").charAt(0).toUpperCase()}</div>
+            <div>
+                <div class="rep-score">⭐ ${Number(score).toFixed(2)} <span class="badge badge-tier-${getTierClass(tier)}">${tier}</span></div>
+                <div class="rep-sub">${greeting()}, ${userDetails.name} — your reputation ${prog.next ? "is climbing" : "is at the top tier"}.</div>
+            </div>
+        </div>
+        <div class="rep-progress"><div style="width:${prog.pct}%"></div></div>
+        <div class="rep-progress-label">${prog.next ? `${prog.missing} points to ${prog.next} — reputation buys ranking priority and fare discounts` : "PREMIUM: maximum priority in driver rankings"}</div>
+        <div class="stats-grid">${stats.map(([v, l]) => `<div class="stat-box"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join("")}</div>`;
+}
+
+/* ── Driver cockpit: trip status + live route ── */
+function tripStatus(t) {
+    const now = new Date();
+    const dep = new Date(t.departureTime);
+    const pax = t.passengers || [];
+    const active = pax.filter(p => p.status === "PENDING" || p.status === "CONFIRMED");
+    const pending = pax.filter(p => p.status === "PENDING").length;
+    if (dep < now) {
+        return active.length === 0 && pax.some(p => p.status === "COMPLETED")
+            ? ["Completed", "trip-Completed"] : ["Departed", "trip-Departed"];
+    }
+    return pending > 0 ? ["Action needed", "trip-ActionNeeded"] : ["Scheduled", "trip-Scheduled"];
+}
+
+async function toggleTripRoute(tripId, btn) {
+    const card = btn.closest(".ride-card");
+    if (!card) return;
+    let panel = card.querySelector(".trip-route-panel");
+    if (panel) { panel.remove(); btn.textContent = "🗺 Route"; return; }
+
+    setBtnLoading(btn, true);
+    try {
+        const res = await fetch(`/api/trips/${tripId}/route`);
+        const data = await res.json();
+        setBtnLoading(btn, false);
+        if (!res.ok) { showToast(data.error || "Could not compute the route."); return; }
+
+        const r = data.routing || {};
+        panel = document.createElement("div");
+        panel.className = "trip-route-panel";
+        panel.innerHTML = `
+            <div class="result-metrics">
+                <div class="metric-item"><span class="metric-label">Total</span><span class="metric-value">${r.totalTimeMinutes ?? "–"} min</span></div>
+                <div class="metric-item"><span class="metric-label">Distance</span><span class="metric-value">${(r.totalDistanceKm ?? 0).toFixed ? r.totalDistanceKm.toFixed(1) : r.totalDistanceKm} km</span></div>
+                <div class="metric-item"><span class="metric-label">Detour</span><span class="metric-value">+${data.detourMinutes ?? 0} min</span></div>
+                <div class="metric-item"><span class="metric-label">Stops</span><span class="metric-value">${Math.max(0, (data.waypoints || []).length - 2)}</span></div>
+            </div>
+            <div class="route-stops">${(r.sequence || []).map(s => `<div>${s}</div>`).join("")}</div>
+            <div class="trip-route-map" style="display:none;"></div>`;
+        card.appendChild(panel);
+        btn.textContent = "▲ Hide route";
+
+        // Live map when the Maps SDK is available; graceful fallback otherwise
+        const wp = data.waypoints || [];
+        if (typeof google !== "undefined" && google.maps && wp.length >= 2 && !googleMapsAuthFailed) {
+            const mapDiv = panel.querySelector(".trip-route-map");
+            mapDiv.style.display = "block";
+            const map = new google.maps.Map(mapDiv, { center: { lat: 37.5, lng: 15.0 }, zoom: 9, disableDefaultUI: true, zoomControl: true });
+            const dr = new google.maps.DirectionsRenderer({ map });
+            new google.maps.DirectionsService().route({
+                origin: wp[0],
+                destination: wp[wp.length - 1],
+                waypoints: wp.slice(1, -1).map(loc => ({ location: loc, stopover: true })),
+                travelMode: google.maps.TravelMode.DRIVING
+            }, (result, status) => {
+                if (status === "OK") dr.setDirections(result);
+                else mapDiv.style.display = "none";
+            });
+        }
+    } catch (e) {
+        setBtnLoading(btn, false);
+        console.error("Route fetch failed:", e);
+    }
 }

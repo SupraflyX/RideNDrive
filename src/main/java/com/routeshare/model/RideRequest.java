@@ -1,58 +1,75 @@
 package com.routeshare.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.routeshare.model.TripOffer;
-import com.routeshare.model.User;
 import com.routeshare.model.enums.BookingStatus;
 import com.routeshare.model.enums.LuggageSize;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.validation.constraints.FutureOrPresent;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
+
 import java.time.LocalDateTime;
 
+/**
+ * RideRequest represents a request submitted by a passenger for a carpool match.
+ *
+ * Demonstrates:
+ * - Domain Modeling: Formalizes passenger requirements as constraints for matching.
+ * - Temporal Modeling: Specifying start and end bounds of a pickup time window.
+ * - State Pattern (FR-12): the booking lifecycle is tracked by an explicit,
+ *   guarded status field.
+ */
 @Entity
-@Table(name="ride_requests")
+@Table(name = "ride_requests")
 public class RideRequest {
+
     @Id
-    @GeneratedValue(strategy=GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @NotNull(message="Passenger is required")
-    @ManyToOne(optional=false)
-    @JoinColumn(name="passenger_id", nullable=false)
-    private @NotNull(message="Passenger is required") User passenger;
+
+    @NotNull(message = "Passenger is required")
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "passenger_id", nullable = false)
+    private User passenger;
+
     @ManyToOne
-    @JoinColumn(name="trip_offer_id")
+    @JoinColumn(name = "trip_offer_id")
     @JsonIgnore
     private TripOffer tripOffer;
-    @NotBlank(message="Origin cannot be empty")
-    @Column(nullable=false)
-    private @NotBlank(message="Origin cannot be empty") String origin;
-    @NotBlank(message="Destination cannot be empty")
-    @Column(nullable=false)
-    private @NotBlank(message="Destination cannot be empty") String destination;
-    @FutureOrPresent(message="Pickup time window start must be in the future")
-    @NotNull(message="Pickup time window start is required")
-    @Column(nullable=false)
-    private @FutureOrPresent(message="Pickup time window start must be in the future") @NotNull(message="Pickup time window start is required") LocalDateTime pickupTimeWindowStart;
-    @FutureOrPresent(message="Pickup time window end must be in the future")
-    @NotNull(message="Pickup time window end is required")
-    @Column(nullable=false)
-    private @FutureOrPresent(message="Pickup time window end must be in the future") @NotNull(message="Pickup time window end is required") LocalDateTime pickupTimeWindowEnd;
-    @Enumerated(value=EnumType.STRING)
-    @Column(nullable=false, columnDefinition="varchar(20) default 'PENDING'")
+
+    @NotBlank(message = "Origin cannot be empty")
+    @Column(nullable = false)
+    private String origin;
+
+    @NotBlank(message = "Destination cannot be empty")
+    @Column(nullable = false)
+    private String destination;
+
+    @FutureOrPresent(message = "Pickup time window start must be in the future")
+    @NotNull(message = "Pickup time window start is required")
+    @Column(nullable = false)
+    private LocalDateTime pickupTimeWindowStart;
+
+    @FutureOrPresent(message = "Pickup time window end must be in the future")
+    @NotNull(message = "Pickup time window end is required")
+    @Column(nullable = false)
+    private LocalDateTime pickupTimeWindowEnd;
+
+    /**
+     * Lifecycle state of this booking. Transitions are guarded by
+     * BookingLifecycleService (State pattern) — see BookingStatus for the
+     * legal transition relation. The column default ensures rows created
+     * before this feature (schema migration via ddl-auto=update) are
+     * backfilled as PENDING instead of empty strings.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20) default 'PENDING'")
     private BookingStatus status = BookingStatus.PENDING;
-    @Enumerated(value=EnumType.STRING)
-    @Column(nullable=false, columnDefinition="varchar(10) default 'NONE'")
+
+    /**
+     * Declared luggage size — evaluated by driver travel rules
+     * (NO_LARGE_LUGGAGE, FR-15) and used as a ranking tie-breaker.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(10) default 'NONE'")
     private LuggageSize luggageSize = LuggageSize.NONE;
 
     public RideRequest() {
@@ -67,7 +84,7 @@ public class RideRequest {
     }
 
     public Long getId() {
-        return this.id;
+        return id;
     }
 
     public void setId(Long id) {
@@ -75,7 +92,7 @@ public class RideRequest {
     }
 
     public User getPassenger() {
-        return this.passenger;
+        return passenger;
     }
 
     public void setPassenger(User passenger) {
@@ -83,7 +100,7 @@ public class RideRequest {
     }
 
     public String getOrigin() {
-        return this.origin;
+        return origin;
     }
 
     public void setOrigin(String origin) {
@@ -91,7 +108,7 @@ public class RideRequest {
     }
 
     public String getDestination() {
-        return this.destination;
+        return destination;
     }
 
     public void setDestination(String destination) {
@@ -99,7 +116,7 @@ public class RideRequest {
     }
 
     public LocalDateTime getPickupTimeWindowStart() {
-        return this.pickupTimeWindowStart;
+        return pickupTimeWindowStart;
     }
 
     public void setPickupTimeWindowStart(LocalDateTime pickupTimeWindowStart) {
@@ -107,7 +124,7 @@ public class RideRequest {
     }
 
     public LocalDateTime getPickupTimeWindowEnd() {
-        return this.pickupTimeWindowEnd;
+        return pickupTimeWindowEnd;
     }
 
     public void setPickupTimeWindowEnd(LocalDateTime pickupTimeWindowEnd) {
@@ -115,7 +132,7 @@ public class RideRequest {
     }
 
     public BookingStatus getStatus() {
-        return this.status;
+        return status;
     }
 
     public void setStatus(BookingStatus status) {
@@ -123,7 +140,7 @@ public class RideRequest {
     }
 
     public LuggageSize getLuggageSize() {
-        return this.luggageSize;
+        return luggageSize;
     }
 
     public void setLuggageSize(LuggageSize luggageSize) {
@@ -131,7 +148,7 @@ public class RideRequest {
     }
 
     public TripOffer getTripOffer() {
-        return this.tripOffer;
+        return tripOffer;
     }
 
     public void setTripOffer(TripOffer tripOffer) {

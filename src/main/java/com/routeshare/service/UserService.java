@@ -24,6 +24,7 @@ public class UserService {
     private final RideRequestRepository rideRequestRepository;
     private final RatingRepository ratingRepository;
     private final NotificationRepository notificationRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
 
     @Autowired
     public UserService(UserRepository userRepository,
@@ -31,13 +32,15 @@ public class UserService {
                        TripOfferRepository tripOfferRepository,
                        RideRequestRepository rideRequestRepository,
                        RatingRepository ratingRepository,
-                       NotificationRepository notificationRepository) {
+                       NotificationRepository notificationRepository,
+                       PaymentTransactionRepository paymentTransactionRepository) {
         this.userRepository = userRepository;
         this.vehicleRepository = vehicleRepository;
         this.tripOfferRepository = tripOfferRepository;
         this.rideRequestRepository = rideRequestRepository;
         this.ratingRepository = ratingRepository;
         this.notificationRepository = notificationRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
     }
 
     public List<User> findAll() {
@@ -79,11 +82,21 @@ public class UserService {
      */
     @Transactional
     public void delete(Long id) {
+        paymentTransactionRepository.deleteAll(paymentTransactionRepository.findByPayerIdOrPayeeId(id, id));
         notificationRepository.deleteAll(notificationRepository.findByRecipientIdOrderByCreatedAtDesc(id));
         ratingRepository.deleteAll(ratingRepository.findByReviewerIdOrRevieweeId(id, id));
         vehicleRepository.deleteAll(vehicleRepository.findByDriverId(id));
         tripOfferRepository.deleteAll(tripOfferRepository.findByDriverId(id));
-        rideRequestRepository.deleteAll(rideRequestRepository.findByPassengerId(id));
+        // Detach the passenger's bookings from their trips first: TripOffer.passengers
+        // has cascade=ALL, so a managed trip would re-persist ("resurrect") removed
+        // bookings at flush and the final user delete would hit the FK constraint.
+        List<RideRequest> bookings = rideRequestRepository.findByPassengerId(id);
+        for (RideRequest booking : bookings) {
+            if (booking.getTripOffer() != null) {
+                booking.getTripOffer().getPassengers().remove(booking);
+            }
+        }
+        rideRequestRepository.deleteAll(bookings);
         userRepository.deleteById(id);
     }
 }
