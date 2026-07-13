@@ -1,4 +1,4 @@
-# 🚗 RideNDrive — Commuter Carpooling Platform
+# RideNDrive — Commuter Carpooling Platform
 
 A modular commuter carpooling application built as a 3rd-year **Software Engineering** course project.
 
@@ -6,7 +6,7 @@ RideNDrive connects drivers who are already making a journey with passengers loo
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **Intelligent Route Matching** — DFS algorithm with constraint-based pruning to sequence multi-passenger stops within time and detour budgets.
 - **Dynamic Pricing Engine** — Policy-chaining pricing system handling rush hour, late-night, and same-zone conditions.
@@ -22,7 +22,7 @@ RideNDrive connects drivers who are already making a journey with passengers loo
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -52,7 +52,7 @@ RideNDrive uses a three-tier **Layered MVC** architecture with dedicated package
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### Option A — XAMPP / MariaDB (default)
 
@@ -114,7 +114,7 @@ All **121 automated tests** should pass (JaCoCo coverage report in `target/site/
 
 ---
 
-## 📊 UML Diagrams
+##  UML Diagrams
 
 The project includes 15 comprehensive UML diagrams covering:
 
@@ -132,7 +132,7 @@ Diagram source files are located in `diagram_svgs/` and `diagram_pdfs/`.
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 RideNDrive/
@@ -158,7 +158,7 @@ RideNDrive/
 
 ---
 
-## 👤 Author
+##  Author
 
 **Mohammad Haroon** (560824)  
 3rd Year — Software Engineering  
