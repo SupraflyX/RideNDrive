@@ -1,5 +1,7 @@
 # 🚗 RideNDrive — Commuter Carpooling Platform
 
+[![CI](https://github.com/SupraflyX/RideNDrive/actions/workflows/maven.yml/badge.svg)](https://github.com/SupraflyX/RideNDrive/actions/workflows/maven.yml)
+
 A modular commuter carpooling application built as a 3rd-year **Software Engineering** course project.
 
 RideNDrive connects drivers who are already making a journey with passengers looking for a ride along a compatible route. The system dynamically matches users, calculates optimal pickup/drop-off sequences, and fairly splits the cost of the journey.
@@ -110,7 +112,7 @@ On first start with an empty database the seeder creates a demo world. All demo 
 mvn test
 ```
 
-All **121 automated tests** should pass (JaCoCo coverage report in `target/site/jacoco/`).
+All **124 automated tests** should pass (JaCoCo coverage report in `target/site/jacoco/`).
 
 ---
 
@@ -150,8 +152,10 @@ RideNDrive/
 │   └── test/                  # JUnit test suite
 ├── diagram_svgs/              # UML diagrams (SVG)
 ├── diagram_pdfs/              # UML diagrams (PDF)
-├── data/                      # Sample data
-├── REPORT.md                  # Full project report (Markdown)
+├── report_artifacts/          # Generated diagrams & sprint charts
+├── data/                      # Sample data (local H2 profile)
+├── docs/                      # Report deliverables & working notes
+├── REPORT.md                  # Full project report (Markdown source)
 ├── pom.xml                    # Maven dependencies
 └── README.md
 ```
