@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,7 +70,10 @@ public class PolicyController {
     }
 
     @PostMapping("/travel/{driverId}")
-    public ResponseEntity<?> addTravelRule(@PathVariable Long driverId, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> addTravelRule(@PathVariable Long driverId,
+                                           @RequestParam Long actorId,
+                                           @RequestBody Map<String, String> payload) {
+        Ownership.require(driverId, actorId, "policy");
         User driver = userRepository.findById(driverId).orElse(null);
         if (driver == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Driver not found."));
@@ -103,10 +107,12 @@ public class PolicyController {
     }
 
     @DeleteMapping("/travel/rule/{ruleId}")
-    public ResponseEntity<?> deleteTravelRule(@PathVariable Long ruleId) {
-        if (!travelRuleRepository.existsById(ruleId)) {
+    public ResponseEntity<?> deleteTravelRule(@PathVariable Long ruleId, @RequestParam Long actorId) {
+        DriverTravelRule rule = travelRuleRepository.findById(ruleId).orElse(null);
+        if (rule == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Rule not found."));
         }
+        Ownership.require(rule.getDriver() == null ? null : rule.getDriver().getId(), actorId, "policy rule");
         travelRuleRepository.deleteById(ruleId);
         return ResponseEntity.ok(Map.of("deleted", ruleId));
     }
@@ -119,7 +125,10 @@ public class PolicyController {
     }
 
     @PostMapping("/pricing/{driverId}")
-    public ResponseEntity<?> addPricingRule(@PathVariable Long driverId, @RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> addPricingRule(@PathVariable Long driverId,
+                                            @RequestParam Long actorId,
+                                            @RequestBody Map<String, String> payload) {
+        Ownership.require(driverId, actorId, "policy");
         User driver = userRepository.findById(driverId).orElse(null);
         if (driver == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Driver not found."));
@@ -149,10 +158,12 @@ public class PolicyController {
     }
 
     @DeleteMapping("/pricing/rule/{ruleId}")
-    public ResponseEntity<?> deletePricingRule(@PathVariable Long ruleId) {
-        if (!pricingRuleRepository.existsById(ruleId)) {
+    public ResponseEntity<?> deletePricingRule(@PathVariable Long ruleId, @RequestParam Long actorId) {
+        DriverPricingRule rule = pricingRuleRepository.findById(ruleId).orElse(null);
+        if (rule == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Rule not found."));
         }
+        Ownership.require(rule.getDriver() == null ? null : rule.getDriver().getId(), actorId, "policy rule");
         pricingRuleRepository.deleteById(ruleId);
         return ResponseEntity.ok(Map.of("deleted", ruleId));
     }
@@ -167,17 +178,11 @@ public class PolicyController {
                     .body(Map.of("error", "Trip not found for this driver."));
         }
 
-        // Candidates: open (unassigned, PENDING) future requests
-        List<RideRequest> open = new ArrayList<>();
-        for (RideRequest r : rideRequestRepository.findAll()) {
-            boolean unassigned = r.getTripOffer() == null;
-            boolean pending = r.getStatus() == BookingStatus.PENDING;
-            boolean future = r.getPickupTimeWindowStart() != null
-                    && r.getPickupTimeWindowStart().isAfter(java.time.LocalDateTime.now().minusHours(1));
-            if (unassigned && pending && future) {
-                open.add(r);
-            }
-        }
+        // Candidates: open (unassigned, PENDING) requests whose window has not elapsed —
+        // selected by the database, not by scanning every request in memory.
+        List<RideRequest> open = rideRequestRepository
+                .findByTripOfferIsNullAndStatusAndPickupTimeWindowStartAfter(
+                        BookingStatus.PENDING, LocalDateTime.now().minusHours(1));
 
         List<TravelPolicyService.RankedCandidate> ranked = travelPolicyService.rankCandidates(driverId, offer, open);
 

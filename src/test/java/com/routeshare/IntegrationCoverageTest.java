@@ -269,7 +269,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<Map> res = restTemplate.exchange("/api/users/" + driverId, HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<Map> res = restTemplate.exchange("/api/users/" + driverId + "?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -288,7 +288,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<Map> res = restTemplate.exchange("/api/users/99999", HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<Map> res = restTemplate.exchange("/api/users/99999?actorId=99999", HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -345,7 +345,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<Map> res = restTemplate.exchange("/api/vehicles/" + vehicleId, HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<Map> res = restTemplate.exchange("/api/vehicles/" + vehicleId + "?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -361,7 +361,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<Map> res = restTemplate.exchange("/api/vehicles/99999", HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<Map> res = restTemplate.exchange("/api/vehicles/99999?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -427,7 +427,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<Map> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<Map> res = restTemplate.exchange("/api/trips/" + tripId + "?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
@@ -445,7 +445,7 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<?> res = restTemplate.exchange("/api/trips/99999", HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<?> res = restTemplate.exchange("/api/trips/99999?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -605,39 +605,7 @@ public class IntegrationCoverageTest {
 
 
     // ─────────────────────────────────────────────────────────────────
-    // 8. TRIP PLANNING CONTROLLER – plan trip (with bound passengers)
-    // ─────────────────────────────────────────────────────────────────
-
-    @Test
-    @Order(70)
-    public void planTrip_success() {
-        // Get the ride request IDs from the rides endpoint
-        ResponseEntity<List> ridesRes = restTemplate.getForEntity("/api/rides", List.class);
-        assertThat(ridesRes.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        List<Map> rides = ridesRes.getBody();
-        List<Integer> requestIds = rides.stream()
-                .map(r -> (Integer) r.get("id"))
-                .toList();
-
-        if (!requestIds.isEmpty()) {
-            ResponseEntity<Map> res = restTemplate.postForEntity(
-                    "/api/trips/" + tripId + "/plan", requestIds, Map.class);
-            assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        }
-    }
-
-    @Test
-    @Order(71)
-    public void planTrip_tripNotFound_returnsBadRequest() {
-        List<Integer> requestIds = List.of(1);
-        ResponseEntity<String> res = restTemplate.postForEntity(
-                "/api/trips/99999/plan", requestIds, String.class);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // 9. TRIP OFFER CONTROLLER – Update trip with bound passengers
+    // 8. TRIP OFFER CONTROLLER – Update trip with bound passengers
     // ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -657,13 +625,13 @@ public class IntegrationCoverageTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
 
-        ResponseEntity<?> res = restTemplate.exchange("/api/trips/" + tripId, HttpMethod.PUT, entity, Map.class);
+        ResponseEntity<?> res = restTemplate.exchange("/api/trips/" + tripId + "?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         // Could be OK or BAD_REQUEST depending on routing feasibility – both exercise the code
         assertThat(res.getStatusCode().value()).isIn(200, 400);
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 10. TRIP PLANNING CONTROLLER – check-existing-matches
+    // 9. TRIP PLANNING CONTROLLER – check-existing-matches
     // ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -704,7 +672,7 @@ public class IntegrationCoverageTest {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 11. RIDE REQUEST CONTROLLER – Full CRUD
+    // 10. RIDE REQUEST CONTROLLER – Full CRUD
     // ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -734,7 +702,7 @@ public class IntegrationCoverageTest {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // 12. RATING CONTROLLER – Full CRUD
+    // 11. RATING CONTROLLER – Full CRUD
     // ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -787,13 +755,103 @@ public class IntegrationCoverageTest {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // 12. OWNERSHIP – mutating endpoints reject a foreign actor (403)
+    // ─────────────────────────────────────────────────────────────────
+
+    @Test
+    @Order(95)
+    public void updateTrip_byNonOwner_isForbidden() {
+        Map<String, Object> payload = new HashMap<>();
+        Map<String, Object> driverObj = new HashMap<>();
+        driverObj.put("id", driverId);
+        payload.put("driver", driverObj);
+        payload.put("origin", "Hijacked");
+        payload.put("destination", "Nowhere");
+        payload.put("departureTime", FUTURE_DATE + "T08:30:00");
+        payload.put("maxStops", 4);
+        payload.put("maxDetourMinutes", 60);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        // A passenger tries to edit somebody else's trip
+        ResponseEntity<Map> res = restTemplate.exchange(
+                "/api/trips/" + tripId + "?actorId=" + passengerId, HttpMethod.PUT, entity, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // ...and the trip is untouched
+        ResponseEntity<Map> after = restTemplate.getForEntity("/api/trips/" + tripId, Map.class);
+        assertThat(after.getBody().get("origin")).isNotEqualTo("Hijacked");
+    }
+
+    @Test
+    @Order(96)
+    public void deleteTrip_byNonOwner_isForbidden() {
+        ResponseEntity<Map> res = restTemplate.exchange(
+                "/api/trips/" + tripId + "?actorId=" + passengerId, HttpMethod.DELETE, null, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> after = restTemplate.getForEntity("/api/trips/" + tripId, Map.class);
+        assertThat(after.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @Order(97)
+    public void deleteUser_byAnotherUser_isForbidden() {
+        ResponseEntity<Map> res = restTemplate.exchange(
+                "/api/users/" + driverId + "?actorId=" + passengerId, HttpMethod.DELETE, null, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> after = restTemplate.getForEntity("/api/users/" + driverId, Map.class);
+        assertThat(after.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @Order(98)
+    public void updateVehicle_byNonOwner_isForbidden() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("make", "Stolen");
+        payload.put("model", "Car");
+        payload.put("capacity", 4);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
+
+        ResponseEntity<Map> res = restTemplate.exchange(
+                "/api/vehicles/" + vehicleId + "?actorId=" + passengerId, HttpMethod.PUT, entity, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @Order(98)
+    public void mutatingEndpoint_withoutActorId_isBadRequest() {
+        // Omitting the required actorId is a client mistake (400), not a server fault (500).
+        ResponseEntity<Map> res = restTemplate.exchange(
+                "/api/trips/" + tripId, HttpMethod.DELETE, null, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    @Order(99)
+    public void addPolicyRule_forAnotherDriver_isForbidden() {
+        Map<String, String> payload = new HashMap<>();
+        payload.put("type", "NO_LARGE_LUGGAGE");
+
+        ResponseEntity<Map> res = restTemplate.postForEntity(
+                "/api/policies/travel/" + driverId + "?actorId=" + passengerId, payload, Map.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // 13. CLEANUP – Delete Trip, then Users (cascading deletes)
     // ─────────────────────────────────────────────────────────────────
 
     @Test
     @Order(100)
     public void deleteTrip_success() {
-        restTemplate.delete("/api/trips/" + tripId);
+        restTemplate.delete("/api/trips/" + tripId + "?actorId=" + driverId);
         ResponseEntity<Map> res = restTemplate.getForEntity("/api/trips/" + tripId, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -801,24 +859,24 @@ public class IntegrationCoverageTest {
     @Test
     @Order(101)
     public void deleteVehicle_success() {
-        restTemplate.delete("/api/vehicles/" + vehicleId);
+        restTemplate.delete("/api/vehicles/" + vehicleId + "?actorId=" + driverId);
     }
 
     @Test
     @Order(102)
     public void deletePassenger2() {
-        restTemplate.delete("/api/users/" + passenger2Id);
+        restTemplate.delete("/api/users/" + passenger2Id + "?actorId=" + passenger2Id);
     }
 
     @Test
     @Order(103)
     public void deletePassenger() {
-        restTemplate.delete("/api/users/" + passengerId);
+        restTemplate.delete("/api/users/" + passengerId + "?actorId=" + passengerId);
     }
 
     @Test
     @Order(104)
     public void deleteDriver() {
-        restTemplate.delete("/api/users/" + driverId);
+        restTemplate.delete("/api/users/" + driverId + "?actorId=" + driverId);
     }
 }

@@ -130,7 +130,7 @@ public class PaymentAndRouteIntegrationTest {
     @Order(6)
     public void accountDeletion_cascadesOverLedgerRows() {
         // Deleting the payer must remove the transaction (FK integrity regression)
-        restTemplate.delete("/api/users/" + paxId);
+        restTemplate.delete("/api/users/" + paxId + "?actorId=" + paxId);
         ResponseEntity<List> payeeSide = restTemplate.getForEntity("/api/payments/user/" + driverId, List.class);
         assertThat(payeeSide.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(payeeSide.getBody().toString()).doesNotContain(paymentReference);

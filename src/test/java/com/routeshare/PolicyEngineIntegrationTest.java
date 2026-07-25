@@ -153,16 +153,16 @@ public class PolicyEngineIntegrationTest {
     @Test
     @Order(3)
     public void addTravelRules_succeeds() {
-        ResponseEntity<Map> r1 = restTemplate.postForEntity("/api/policies/travel/" + driverId,
+        ResponseEntity<Map> r1 = restTemplate.postForEntity("/api/policies/travel/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "MIN_PASSENGER_REPUTATION", "numericValue", "4.0"), Map.class);
         assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.OK);
         minRepRuleId = ((Number) r1.getBody().get("id")).longValue();
 
-        ResponseEntity<Map> r2 = restTemplate.postForEntity("/api/policies/travel/" + driverId,
+        ResponseEntity<Map> r2 = restTemplate.postForEntity("/api/policies/travel/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "SAME_DESTINATION_ONLY"), Map.class);
         assertThat(r2.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        ResponseEntity<Map> r3 = restTemplate.postForEntity("/api/policies/travel/" + driverId,
+        ResponseEntity<Map> r3 = restTemplate.postForEntity("/api/policies/travel/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "NO_LARGE_LUGGAGE"), Map.class);
         assertThat(r3.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
@@ -178,7 +178,7 @@ public class PolicyEngineIntegrationTest {
     @Test
     @Order(5)
     public void addTravelRule_unknownType_isRejected() {
-        ResponseEntity<Map> res = restTemplate.postForEntity("/api/policies/travel/" + driverId,
+        ResponseEntity<Map> res = restTemplate.postForEntity("/api/policies/travel/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "ALWAYS_SUNNY"), Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -186,7 +186,7 @@ public class PolicyEngineIntegrationTest {
     @Test
     @Order(6)
     public void addMinReputationRule_withoutThreshold_isRejected() {
-        ResponseEntity<Map> res = restTemplate.postForEntity("/api/policies/travel/" + driverId,
+        ResponseEntity<Map> res = restTemplate.postForEntity("/api/policies/travel/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "MIN_PASSENGER_REPUTATION"), Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -238,7 +238,7 @@ public class PolicyEngineIntegrationTest {
     @Test
     @Order(11)
     public void deleteTravelRule_reopensAccess() {
-        restTemplate.delete("/api/policies/travel/rule/" + minRepRuleId);
+        restTemplate.delete("/api/policies/travel/rule/" + minRepRuleId + "?actorId=" + driverId);
         ResponseEntity<List> res = restTemplate.getForEntity("/api/policies/travel/" + driverId, List.class);
         assertThat(res.getBody()).hasSize(2);
     }
@@ -317,15 +317,15 @@ public class PolicyEngineIntegrationTest {
     @Test
     @Order(15)
     public void addPricingRules_succeeds() {
-        ResponseEntity<Map> r1 = restTemplate.postForEntity("/api/policies/pricing/" + driverId,
+        ResponseEntity<Map> r1 = restTemplate.postForEntity("/api/policies/pricing/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "BASE_RATE_PER_KM", "value", "1.00"), Map.class);
         assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        ResponseEntity<Map> r2 = restTemplate.postForEntity("/api/policies/pricing/" + driverId,
+        ResponseEntity<Map> r2 = restTemplate.postForEntity("/api/policies/pricing/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "LOYALTY_TIER_DISCOUNT_PCT", "value", "10"), Map.class);
         assertThat(r2.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        ResponseEntity<Map> bad = restTemplate.postForEntity("/api/policies/pricing/" + driverId,
+        ResponseEntity<Map> bad = restTemplate.postForEntity("/api/policies/pricing/" + driverId + "?actorId=" + driverId,
                 Map.of("type", "FREE_RIDES_FOREVER", "value", "1"), Map.class);
         assertThat(bad.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }

@@ -87,16 +87,11 @@ public class UserService {
         ratingRepository.deleteAll(ratingRepository.findByReviewerIdOrRevieweeId(id, id));
         vehicleRepository.deleteAll(vehicleRepository.findByDriverId(id));
         tripOfferRepository.deleteAll(tripOfferRepository.findByDriverId(id));
-        // Detach the passenger's bookings from their trips first: TripOffer.passengers
-        // has cascade=ALL, so a managed trip would re-persist ("resurrect") removed
-        // bookings at flush and the final user delete would hit the FK constraint.
-        List<RideRequest> bookings = rideRequestRepository.findByPassengerId(id);
-        for (RideRequest booking : bookings) {
-            if (booking.getTripOffer() != null) {
-                booking.getTripOffer().getPassengers().remove(booking);
-            }
-        }
-        rideRequestRepository.deleteAll(bookings);
+        // Bulk JPQL delete: TripOffer.passengers cascades PERSIST, so removing these
+        // bookings entity-by-entity inside this transaction lets a managed trip
+        // "resurrect" them at flush (FK violation on the final user delete). The bulk
+        // statement bypasses the persistence context; flush/clear keep it consistent.
+        rideRequestRepository.deleteBulkByPassengerId(id);
         userRepository.deleteById(id);
     }
 }

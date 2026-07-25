@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -178,6 +180,82 @@ public class StopPlanningServiceTest {
 
         assertFalse(result.isFeasible());
         assertNotNull(result.getViolationReason());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testSearchStatsAreReportedAndConsistent() {
+        // Same happy-path fixture as testFindsOptimalSequence
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
+        when(mappingService.getDistanceKm("ZoneA", "ZoneB")).thenReturn(10.0);
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneA", "ZoneC")).thenReturn(3.0);
+        when(mappingService.getTravelTimeMinutes("ZoneC", "ZoneD")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneC", "ZoneD")).thenReturn(3.0);
+        when(mappingService.getTravelTimeMinutes("ZoneD", "ZoneB")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneD", "ZoneB")).thenReturn(3.0);
+
+        StopSequenceResult result = stopPlanningService.planRoute(offer, Arrays.asList(request1), vehicle);
+
+        assertTrue(result.isFeasible());
+        assertNotNull(result.getSearchStats(), "search stats must accompany every planned route");
+        java.util.Map<String, Object> stats = result.getSearchStats();
+        assertEquals(1, stats.get("requests"));
+        assertTrue(((Number) stats.get("nodesExplored")).longValue() >= 1);
+        java.util.Map<String, Long> pruned = (java.util.Map<String, Long>) stats.get("prunedByConstraint");
+        assertEquals(5, pruned.size(), "all five constraints must be reported");
+        long sum = pruned.values().stream().mapToLong(Long::longValue).sum();
+        assertEquals(((Number) stats.get("prunedTotal")).longValue(), sum, "prunedTotal must equal the per-constraint sum");
+        // C1 must have pruned at least once: DROPOFF(Bob) is a candidate before his PICKUP at the root
+        assertTrue(pruned.get("C1_ordering") >= 1);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testSearchStatsCountDetourPrunings() {
+        // Infeasible fixture from testNoFeasibleRoute: every extension violates the detour bound
+        offer.setMaxDetourMinutes(5);
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(10);
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(5);
+        when(mappingService.getTravelTimeMinutes("ZoneC", "ZoneD")).thenReturn(5);
+        when(mappingService.getTravelTimeMinutes("ZoneD", "ZoneB")).thenReturn(10);
+
+        StopSequenceResult result = stopPlanningService.planRoute(offer, Arrays.asList(request1), vehicle);
+
+        assertFalse(result.isFeasible());
+        assertNotNull(result.getSearchStats(), "stats must be reported even for infeasible searches");
+        java.util.Map<String, Long> pruned =
+                (java.util.Map<String, Long>) result.getSearchStats().get("prunedByConstraint");
+        assertTrue(pruned.get("C5_detourBound") >= 1, "the detour lower bound must have pruned");
+    }
+
+    @Test
+    public void testMappingLookupsAreMemoisedWithinOnePlan() {
+        // The DFS re-evaluates the same legs constantly (every node prices the leg home).
+        // With a live Maps key each repeat would be an HTTP call, so the per-plan memo
+        // must absorb them: the mapping service sees each distinct leg exactly once.
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
+        when(mappingService.getDistanceKm("ZoneA", "ZoneB")).thenReturn(10.0);
+        when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneA", "ZoneC")).thenReturn(3.0);
+        when(mappingService.getTravelTimeMinutes("ZoneC", "ZoneD")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneC", "ZoneD")).thenReturn(3.0);
+        when(mappingService.getTravelTimeMinutes("ZoneD", "ZoneB")).thenReturn(5);
+        when(mappingService.getDistanceKm("ZoneD", "ZoneB")).thenReturn(3.0);
+
+        StopSequenceResult result = stopPlanningService.planRoute(offer, Arrays.asList(request1), vehicle);
+
+        assertTrue(result.isFeasible());
+        java.util.Map<String, Object> stats = result.getSearchStats();
+        long lookups = ((Number) stats.get("legLookups")).longValue();
+        long hits = ((Number) stats.get("legCacheHits")).longValue();
+        assertTrue(hits > 0, "the memo must absorb repeated legs");
+        assertTrue(lookups > hits, "some lookups must still reach the mapping service");
+
+        // Every distinct leg is fetched exactly once, however often the search asks for it.
+        verify(mappingService, times(1)).getTravelTimeMinutes("ZoneA", "ZoneB");
+        verify(mappingService, times(1)).getTravelTimeMinutes("ZoneC", "ZoneD");
+        verify(mappingService, times(1)).getDistanceKm("ZoneA", "ZoneC");
     }
 
     @Test

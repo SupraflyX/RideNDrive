@@ -5,6 +5,8 @@ import com.routeshare.model.User;
 import com.routeshare.model.enums.IncentiveTier;
 import com.routeshare.repository.RatingRepository;
 import com.routeshare.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,8 @@ import java.util.List;
  */
 @Service
 public class ReputationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReputationService.class);
 
     private final UserRepository userRepository;
     private final RatingRepository ratingRepository;
@@ -61,8 +65,8 @@ public class ReputationService {
         user.setLastActiveDate(LocalDateTime.now());
         userRepository.save(user);
 
-        System.out.printf("[ReputationWorkflow] Processed rating for User %s. Avg: %.2f, Decay Score: %.2f, Tier: %s%n",
-                user.getName(), rollingAverage, finalScore, newTier);
+        log.info("[ReputationWorkflow] Processed rating for User {}. Avg: {}, Decay Score: {}, Tier: {}",
+                user.getName(), String.format("%.2f", rollingAverage), String.format("%.2f", finalScore), newTier);
     }
 
     /**

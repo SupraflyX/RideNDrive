@@ -41,3 +41,6 @@ revert.py
 *.bak_gemini
 ~$*
 New Text Document.txt
+
+# Local H2 lock file (transient, created while the app runs)
+data/*.lock.db

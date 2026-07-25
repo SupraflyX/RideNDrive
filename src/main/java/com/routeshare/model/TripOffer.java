@@ -45,6 +45,14 @@ public class TripOffer {
     @Column(nullable = false)
     private int maxDetourMinutes;
 
+    /**
+     * Bookings attached to this trip. EAGER because every consumer (routing, search,
+     * serialization) needs the bookings immediately and trips carry at most a handful.
+     * CascadeType.ALL lets booking creation persist through the trip aggregate.
+     * CAUTION: the PERSIST cascade means a managed TripOffer re-persists children at
+     * flush — bulk-delete bookings (see RideRequestRepository.deleteBulkByPassengerId)
+     * instead of removing them entity-by-entity in the same persistence context.
+     */
     @OneToMany(mappedBy = "tripOffer", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     private java.util.List<RideRequest> passengers = new java.util.ArrayList<>();
 

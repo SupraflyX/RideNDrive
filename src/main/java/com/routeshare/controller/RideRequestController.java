@@ -37,21 +37,38 @@ public class RideRequestController {
     }
 
     @PostMapping
-    public RideRequest createRide(@RequestBody RideRequest rideRequest) {
-        return rideRequestService.save(rideRequest);
+    public ResponseEntity<?> createRide(@RequestBody RideRequest rideRequest) {
+        // Creation-time temporal rule (moved off the entity so lifecycle updates
+        // of historical bookings are not re-validated at flush):
+        if (rideRequest.getPickupTimeWindowEnd() != null
+                && rideRequest.getPickupTimeWindowEnd().isBefore(java.time.LocalDateTime.now())) {
+            return ResponseEntity.badRequest()
+                    .body(java.util.Map.of("error", "The pickup time window has already passed."));
+        }
+        return ResponseEntity.ok(rideRequestService.save(rideRequest));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<RideRequest> updateRide(@PathVariable Long id, @RequestBody RideRequest rideRequestDetails) {
-        try {
-            return ResponseEntity.ok(rideRequestService.update(id, rideRequestDetails));
-        } catch (RuntimeException e) {
+    public ResponseEntity<RideRequest> updateRide(@PathVariable Long id,
+                                                  @RequestParam Long actorId,
+                                                  @RequestBody RideRequest rideRequestDetails) {
+        RideRequest existing = rideRequestService.findById(id).orElse(null);
+        if (existing == null) {
             return ResponseEntity.notFound().build();
         }
+        Ownership.require(existing.getPassenger() == null ? null : existing.getPassenger().getId(),
+                actorId, "booking");
+        return ResponseEntity.ok(rideRequestService.update(id, rideRequestDetails));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRide(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteRide(@PathVariable Long id, @RequestParam Long actorId) {
+        RideRequest existing = rideRequestService.findById(id).orElse(null);
+        if (existing == null) {
+            return ResponseEntity.ok().build(); // deleting a non-existent booking is a no-op
+        }
+        Ownership.require(existing.getPassenger() == null ? null : existing.getPassenger().getId(),
+                actorId, "booking");
         rideRequestService.delete(id);
         return ResponseEntity.ok().build();
     }
