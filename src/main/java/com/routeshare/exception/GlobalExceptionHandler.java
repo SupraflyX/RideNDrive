@@ -27,20 +27,51 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** Bean-validation failures on @Valid bodies → 400 with field messages. */
+    /**
+     * Bean-validation failures on @Valid bodies → 400 with BOTH a summary message
+     * ("error", kept for backward compatibility) and a per-field map ("fieldErrors")
+     * that the SPA uses for inline highlighting next to each input.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(err -> err.getField() + ": " + err.getDefaultMessage())
+        java.util.Map<String, String> fieldErrors = new java.util.LinkedHashMap<>();
+        e.getBindingResult().getFieldErrors()
+                .forEach(err -> fieldErrors.putIfAbsent(err.getField(), err.getDefaultMessage()));
+        String message = fieldErrors.entrySet().stream()
                 .findFirst()
+                .map(en -> en.getKey() + ": " + en.getValue())
                 .orElse("Validation failed.");
-        return ResponseEntity.badRequest().body(Map.of("error", message));
+        return ResponseEntity.badRequest().body(Map.of("error", message, "fieldErrors", fieldErrors));
+    }
+
+    /**
+     * A missing or unparseable request parameter → 400, not 500.
+     *
+     * The mutating endpoints require an {@code actorId}; omitting it is a client
+     * mistake and must read as one.
+     */
+    @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class,
+                       org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<Map<String, Object>> handleBadParameter(Exception e) {
+        return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
     }
 
     /** Illegal state-machine transitions and similar → 409 CONFLICT. */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+    }
+
+    /**
+     * Acting on someone else's record → 403 FORBIDDEN.
+     *
+     * Ownership is enforced by the controllers and BookingLifecycleService, which raise
+     * SecurityException; mapping it once here means every guarded endpoint answers with
+     * the same shape instead of leaking a 500.
+     */
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Map<String, Object>> handleForbidden(SecurityException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
     }
 
     /** Referential-integrity violations → 409 with a readable message. */

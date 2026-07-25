@@ -123,7 +123,6 @@ a:hover { text-decoration: underline; }
     background: var(--accent-grad);
     display: flex; align-items: center; justify-content: center;
     font-size: 1.9rem; font-weight: 800; color: #fff;
-    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
 }
 .brand-mark-sm { width: 38px; height: 38px; border-radius: 11px; font-size: 1.25rem; }
 
@@ -139,7 +138,16 @@ a:hover { text-decoration: underline; }
 /* ═══ FORMS ═══ */
 .form-group { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
 .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/*
+ * Two fields side by side, dropping to one whenever the CONTAINER is too narrow
+ * — not just the viewport. A datetime-local input has a ~212px intrinsic
+ * min-content width (spin fields + picker icon), and grid items default to
+ * min-width:auto, so a plain "1fr 1fr" could not shrink below that and the
+ * pickup-window inputs overflowed their card inside the narrow split layout.
+ * The 220px floor keeps each column just wider than that intrinsic width.
+ */
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.form-row > * { min-width: 0; }
 .form-row-end { align-items: end; }
 .form-row-end .btn { margin-bottom: 14px; }
 
@@ -172,7 +180,7 @@ input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+    transition: transform 0.12s, filter 0.15s, background 0.15s;
     color: var(--text-primary);
     background: var(--bg-elevated);
 }
@@ -182,9 +190,8 @@ input[type="date"], input[type="datetime-local"] { color-scheme: dark; }
 .btn-primary {
     background: var(--accent-grad);
     color: #fff;
-    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
 }
-.btn-primary:hover { box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5); }
+.btn-primary:hover { filter: brightness(1.08); }
 
 .btn-secondary { background: var(--bg-elevated); border-color: var(--line-strong); }
 .btn-accent { background: var(--accent); color: #fff; }
@@ -647,3 +654,25 @@ tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
 .route-stops div { margin-bottom: 6px; }
 .pay-line { font-size: 0.78rem; color: var(--ok); margin-top: 6px; }
 .pay-line.held { color: var(--warn); }
+
+
+/* ── Inline validation + algorithm transparency (UX batch) ─────────────── */
+.input-error {
+    border-color: var(--accent-error, #dc2626) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-error, #dc2626) 15%, transparent);
+}
+.field-error-msg {
+    color: var(--accent-error, #dc2626);
+    font-size: 0.75rem;
+    margin: 4px 0 0 2px;
+}
+.algo-insight {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px dashed var(--line-strong, var(--border-color));
+    border-radius: 6px;
+    padding: 5px 8px;
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+}

@@ -43,12 +43,19 @@ public class RideRequest {
     @Column(nullable = false)
     private String destination;
 
-    @FutureOrPresent(message = "Pickup time window start must be in the future")
+    /*
+     * Deliberately NOT annotated @FutureOrPresent: Hibernate re-validates dirty
+     * entities at every flush, so a temporal constraint on a lifecycle entity
+     * breaks legal status transitions once time passes (confirming or completing
+     * a booking after its window has elapsed failed the whole JPA commit — defect
+     * found during demo rehearsal). "Window must be in the future" is a rule about
+     * CREATING bookings, so it is enforced at the API boundary instead
+     * (TripPlanningController.bookPassenger, RideRequestController).
+     */
     @NotNull(message = "Pickup time window start is required")
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowStart;
 
-    @FutureOrPresent(message = "Pickup time window end must be in the future")
     @NotNull(message = "Pickup time window end is required")
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowEnd;

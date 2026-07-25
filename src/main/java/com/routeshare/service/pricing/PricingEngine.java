@@ -2,16 +2,13 @@ package com.routeshare.service.pricing;
 
 import com.routeshare.model.DriverPricingRule;
 import com.routeshare.model.dto.PricingResult;
-import com.routeshare.model.enums.IncentiveTier;
+import com.routeshare.model.enums.PricingRuleType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * PricingEngine coordinates the execution of the Chain of Responsibility for carpool fare calculation.
@@ -28,6 +25,10 @@ import java.util.stream.Collectors;
 @Service
 public class PricingEngine {
 
+    /** €2.00 platform fee plus a per-kilometre rate is the shape of every fare. */
+    private static final double PLATFORM_FEE_EUR = 2.00;
+    private static final double DEFAULT_RATE_PER_KM = 0.50;
+
     private final List<PricingPolicy> policies;
 
     @Autowired
@@ -35,7 +36,7 @@ public class PricingEngine {
         // Sort policies in ascending order of their priority values (lowest priority value goes first)
         this.policies = policies.stream()
                 .sorted(Comparator.comparingInt(PricingPolicy::getPriority))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -49,8 +50,8 @@ public class PricingEngine {
             return new PricingResult(0.0, 0.0, new ArrayList<>());
         }
 
-        // Compute base fare for carpooling (fuel/toll splitting): €2.00 platform fee + €0.50 per kilometer
-        double baseFare = 2.00 + (context.getDistanceKm() * 0.50);
+        // Base fare for carpooling (fuel/toll splitting): platform fee + per-kilometre rate
+        double baseFare = baseFare(context, DEFAULT_RATE_PER_KM);
         double currentFare = baseFare;
         List<String> appliedPolicies = new ArrayList<>();
 
@@ -63,11 +64,7 @@ public class PricingEngine {
             }
         }
 
-        // Round fare to 2 decimal places
-        double finalFare = Math.round(currentFare * 100.0) / 100.0;
-        baseFare = Math.round(baseFare * 100.0) / 100.0;
-
-        return new PricingResult(baseFare, finalFare, appliedPolicies);
+        return new PricingResult(round(baseFare), round(currentFare), appliedPolicies);
     }
 
     /**
@@ -90,62 +87,62 @@ public class PricingEngine {
         List<String> applied = new ArrayList<>();
 
         // Base rate: the driver's own €/km if she defined one, platform default otherwise
-        double ratePerKm = 0.50;
+        double ratePerKm = DEFAULT_RATE_PER_KM;
         for (DriverPricingRule rule : driverRules) {
-            if (rule.getType() == com.routeshare.model.enums.PricingRuleType.BASE_RATE_PER_KM) {
+            if (rule.getType() == PricingRuleType.BASE_RATE_PER_KM) {
                 ratePerKm = rule.getValue();
                 applied.add(String.format("DriverRule:BASE_RATE_PER_KM(%.2f€/km)", rule.getValue()));
                 break;
             }
         }
-        double baseFare = 2.00 + (context.getDistanceKm() * ratePerKm);
+
+        double baseFare = baseFare(context, ratePerKm);
         double fare = baseFare;
 
-        LocalTime time = context.getDepartureTime() == null ? null : context.getDepartureTime().toLocalTime();
-        DayOfWeek day = context.getDepartureTime() == null ? null : context.getDepartureTime().getDayOfWeek();
-
+        // Conditions come from RideContext — the same definitions the platform chain uses.
         for (DriverPricingRule rule : driverRules) {
+            double value = rule.getValue();
             switch (rule.getType()) {
                 case RUSH_HOUR_SURCHARGE_PCT -> {
-                    boolean weekday = day != null && day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
-                    boolean rush = time != null && weekday && (
-                            (!time.isBefore(LocalTime.of(7, 0)) && !time.isAfter(LocalTime.of(9, 0))) ||
-                            (!time.isBefore(LocalTime.of(17, 0)) && !time.isAfter(LocalTime.of(19, 0))));
-                    if (rush) {
-                        fare *= (1.0 + rule.getValue() / 100.0);
-                        applied.add(String.format("DriverRule:RUSH_HOUR_SURCHARGE(%.0f%%)", rule.getValue()));
+                    if (context.isRushHour()) {
+                        fare *= (1.0 + value / 100.0);
+                        applied.add(String.format("DriverRule:RUSH_HOUR_SURCHARGE(%.0f%%)", value));
                     }
                 }
                 case LATE_NIGHT_FEE_EUR -> {
-                    boolean night = time != null &&
-                            (!time.isBefore(LocalTime.of(23, 0)) || !time.isAfter(LocalTime.of(5, 0)));
-                    if (night) {
-                        fare += rule.getValue();
-                        applied.add(String.format("DriverRule:LATE_NIGHT_FEE(+%.2f€)", rule.getValue()));
+                    if (context.isLateNight()) {
+                        fare += value;
+                        applied.add(String.format("DriverRule:LATE_NIGHT_FEE(+%.2f€)", value));
                     }
                 }
                 case SAME_DESTINATION_DISCOUNT_PCT -> {
-                    boolean sameZone = context.getPassengerDestination() != null && context.getDriverDestination() != null
-                            && context.getPassengerDestination().trim().equalsIgnoreCase(context.getDriverDestination().trim());
-                    if (sameZone) {
-                        fare *= (1.0 - rule.getValue() / 100.0);
-                        applied.add(String.format("DriverRule:SAME_DESTINATION_DISCOUNT(%.0f%%)", rule.getValue()));
+                    if (context.isSameDestinationZone()) {
+                        fare *= (1.0 - value / 100.0);
+                        applied.add(String.format("DriverRule:SAME_DESTINATION_DISCOUNT(%.0f%%)", value));
                     }
                 }
                 case LOYALTY_TIER_DISCOUNT_PCT -> {
                     // Incentive mechanism: reputation tier earns cheaper rides
-                    IncentiveTier tier = context.getPassengerTier();
-                    boolean loyal = tier == IncentiveTier.GOLD || tier == IncentiveTier.PREMIUM_PRICING;
-                    if (loyal) {
-                        fare *= (1.0 - rule.getValue() / 100.0);
-                        applied.add(String.format("DriverRule:LOYALTY_TIER_DISCOUNT(%.0f%% for %s)", rule.getValue(), tier));
+                    if (context.isLoyaltyTier()) {
+                        fare *= (1.0 - value / 100.0);
+                        applied.add(String.format("DriverRule:LOYALTY_TIER_DISCOUNT(%.0f%% for %s)",
+                                value, context.getPassengerTier()));
                     }
                 }
                 case BASE_RATE_PER_KM -> { /* consumed above */ }
             }
         }
 
-        double finalFare = Math.max(0.0, Math.round(fare * 100.0) / 100.0);
-        return new PricingResult(Math.round(baseFare * 100.0) / 100.0, finalFare, applied);
+        return new PricingResult(round(baseFare), Math.max(0.0, round(fare)), applied);
+    }
+
+    /** Every fare starts as the platform fee plus a per-kilometre rate. */
+    private static double baseFare(RideContext context, double ratePerKm) {
+        return PLATFORM_FEE_EUR + (context.getDistanceKm() * ratePerKm);
+    }
+
+    /** Fares are money: two decimal places, always. */
+    private static double round(double fare) {
+        return Math.round(fare * 100.0) / 100.0;
     }
 }

@@ -41,22 +41,28 @@ public class VehicleController {
         return vehicleService.findByDriverId(driverId);
     }
 
-    @PostMapping
-    public Vehicle createVehicle(@RequestBody Vehicle vehicle) {
-        return vehicleService.save(vehicle);
-    }
+    // A driver's vehicle is registered with their account (/api/auth/register-driver);
+    // there is no standalone creation path, so none is exposed.
 
     @PutMapping("/{id}")
-    public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id, @RequestBody Vehicle vehicleDetails) {
-        try {
-            return ResponseEntity.ok(vehicleService.update(id, vehicleDetails));
-        } catch (RuntimeException e) {
+    public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id,
+                                                 @RequestParam Long actorId,
+                                                 @RequestBody Vehicle vehicleDetails) {
+        Vehicle existing = vehicleService.findById(id).orElse(null);
+        if (existing == null) {
             return ResponseEntity.notFound().build();
         }
+        Ownership.require(existing.getDriver() == null ? null : existing.getDriver().getId(), actorId, "vehicle");
+        return ResponseEntity.ok(vehicleService.update(id, vehicleDetails));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteVehicle(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteVehicle(@PathVariable Long id, @RequestParam Long actorId) {
+        Vehicle existing = vehicleService.findById(id).orElse(null);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Ownership.require(existing.getDriver() == null ? null : existing.getDriver().getId(), actorId, "vehicle");
         vehicleService.delete(id);
         return ResponseEntity.ok().build();
     }

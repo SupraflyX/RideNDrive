@@ -13,10 +13,7 @@ public class SameDestinationZoneDiscount implements PricingPolicy {
 
     @Override
     public boolean appliesTo(RideContext context) {
-        if (context == null || context.getPassengerDestination() == null || context.getDriverDestination() == null) {
-            return false;
-        }
-        return context.getPassengerDestination().trim().equalsIgnoreCase(context.getDriverDestination().trim());
+        return context != null && context.isSameDestinationZone();
     }
 
     @Override

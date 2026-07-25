@@ -37,13 +37,15 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @PostMapping
-    public User createUser(@RequestBody User user) {
-        return userService.save(user);
-    }
+    // Account creation lives in AuthController (/api/auth/register-*), which is the only
+    // path that BCrypt-hashes the password. A generic POST here stored whatever string
+    // the caller sent as the "hash", producing an account that could never log in.
 
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User userDetails) {
+    public ResponseEntity<User> updateUser(@PathVariable Long id,
+                                           @RequestParam Long actorId,
+                                           @RequestBody User userDetails) {
+        Ownership.require(id, actorId, "account");
         try {
             return ResponseEntity.ok(userService.update(id, userDetails));
         } catch (RuntimeException e) {
@@ -52,7 +54,8 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id, @RequestParam Long actorId) {
+        Ownership.require(id, actorId, "account");
         userService.delete(id);
         return ResponseEntity.ok().build();
     }

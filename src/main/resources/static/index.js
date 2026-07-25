@@ -5,12 +5,59 @@ let trips = [];
 let rides = [];
 let ratings = [];
 let currentUser = null;
-let authPendingName = "";
 let map = null;
 let directionsService = null;
 let directionsRenderer = null;
-let currentMode = "passenger"; // Active view mode
 
+// ==================== OUTPUT ESCAPING ====================
+/**
+ * Escapes a value for interpolation into an innerHTML template.
+ *
+ * Everything user-controlled — names, place names, vehicle make/model,
+ * notification text — passes through here. Without it a display name like
+ * `<img src=x onerror=...>` executes for every user who views that row, and a
+ * quote in a place name breaks out of an onclick attribute into script context.
+ */
+function esc(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// ==================== API HELPERS ====================
+/**
+ * Sends a JSON request and normalises the reply to { ok, status, data }.
+ * Centralises the method/headers/serialisation boilerplate that every form
+ * handler used to repeat. Empty bodies become {}, and a plain-text error body
+ * (a few endpoints still return one) is wrapped as { error: text }, so callers
+ * can always read `data.error` without a second try/catch.
+ */
+async function apiSend(url, body, method = "POST") {
+    const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    const raw = await res.text();
+    let data = null;
+    if (raw) {
+        try {
+            data = JSON.parse(raw);
+        } catch (e) {
+            data = { error: raw };
+        }
+    }
+    return { ok: res.ok, status: res.status, data: data ?? {} };
+}
+
+/** Reads JSON from an endpoint, with the same normalised { ok, status, data } shape. */
+function apiGet(url) {
+    return apiSend(url, undefined, "GET");
+}
 
 
 // ==================== NAVIGATION & SIDEBAR LOGIC ====================
@@ -112,23 +159,6 @@ async function loadGoogleMapsSdk() {
     }
 }
 
-// Setup Tab Navigation
-function setupTabNavigation() {
-    const tabButtons = document.querySelectorAll(".tab-btn");
-    const tabPanels = document.querySelectorAll(".tab-panel");
-
-    tabButtons.forEach(btn => {
-        btn.addEventListener("click", () => {
-            tabButtons.forEach(b => b.classList.remove("active"));
-            tabPanels.forEach(p => p.classList.remove("active"));
-
-            btn.classList.add("active");
-            const tabId = btn.getAttribute("data-tab");
-            document.getElementById(tabId).classList.add("active");
-        });
-    });
-}
-
 // Session Check & Authentication Transitions
 function checkAuthSession() {
     const userStr = localStorage.getItem("routeshare_user");
@@ -138,7 +168,6 @@ function checkAuthSession() {
     if (userStr) {
         try {
             currentUser = JSON.parse(userStr);
-            currentMode = currentUser.role === "DRIVER" ? "driver" : "passenger";
             authContainer.style.display = "none";
             appWrapper.style.display = "flex";
             updateSessionDisplay();
@@ -194,14 +223,6 @@ function showAuthScreens() {
     if (regDMake) regDMake.value = "";
     if (regDModel) regDModel.value = "";
     if (regDCap) regDCap.value = "4";
-
-    // Hide role dashboards
-    
-    
-    
-    
-    
-    
 }
 
 function updateSessionDisplay() {
@@ -209,7 +230,7 @@ function updateSessionDisplay() {
     
     // Update header profile card
     document.getElementById("session-avatar").innerText = currentUser.name.charAt(0).toUpperCase();
-    document.getElementById("session-username").innerHTML = `<strong>${currentUser.name}</strong>`;
+    document.getElementById("session-username").innerHTML = `<strong>${esc(currentUser.name)}</strong>`;
     document.getElementById("session-role-tier").innerText = `${currentUser.role} / ${currentUser.incentiveTier || 'STANDARD'}`;
 
     // Update form readonly text inputs
@@ -279,18 +300,11 @@ function setupAuthListeners() {
         const loginBtn = e.target.querySelector('button[type="submit"]');
         setBtnLoading(loginBtn, true);
         try {
-            const res = await fetch("/api/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, password })
-            });
+            const { ok, data } = await apiSend("/api/auth/login", { name, password });
 
-            const data = await res.json();
-
-            if (res.ok) {
+            if (ok) {
                 localStorage.setItem("routeshare_user", JSON.stringify(data));
                 currentUser = data;
-                currentMode = currentUser.role === "DRIVER" ? "driver" : "passenger";
                 document.getElementById("login-name").value = "";
                 document.getElementById("login-password").value = "";
                 
@@ -311,6 +325,32 @@ function setupAuthListeners() {
         }
     });
 
+    // ── Inline validation feedback (server-side bean validation → per-field hints) ──
+    // The API's 400 responses carry a fieldErrors map (see GlobalExceptionHandler);
+    // these helpers paint it next to the offending inputs instead of only toasting.
+    window.clearFieldErrors = function (formEl) {
+        if (!formEl) return;
+        formEl.querySelectorAll(".input-error").forEach(el => el.classList.remove("input-error"));
+        formEl.querySelectorAll(".field-error-msg").forEach(el => el.remove());
+    };
+    window.applyFieldErrors = function (formEl, fieldErrors, idByField) {
+        if (!formEl || !fieldErrors) return false;
+        clearFieldErrors(formEl);
+        let painted = false;
+        Object.entries(fieldErrors).forEach(([field, message]) => {
+            const inputId = (idByField && idByField[field]) || field;
+            const input = document.getElementById(inputId);
+            if (!input || !formEl.contains(input)) return;
+            input.classList.add("input-error");
+            const msg = document.createElement("div");
+            msg.className = "field-error-msg";
+            msg.textContent = message;
+            input.insertAdjacentElement("afterend", msg);
+            painted = true;
+        });
+        return painted;
+    };
+
     // Handle Passenger Registration submission
     document.getElementById("auth-passenger-register-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -320,15 +360,9 @@ function setupAuthListeners() {
         if (!name || !password) return;
 
         try {
-            const res = await fetch("/api/auth/register-passenger", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, password })
-            });
+            const { ok, data } = await apiSend("/api/auth/register-passenger", { name, password });
 
-            const data = await res.json();
-
-            if (res.ok) {
+            if (ok) {
                 showToast("Passenger registration successful! You can now log in.");
                 document.getElementById("register-p-name").value = "";
                 document.getElementById("register-p-password").value = "";
@@ -337,7 +371,9 @@ function setupAuthListeners() {
                 passengerRegisterScreen.style.display = "none";
                 authTitleText.innerText = "Sign In to DriveNRide";
             } else {
-                showToast(data.error || "Registration failed.");
+                const painted = applyFieldErrors(e.target, data.fieldErrors,
+                    { name: "register-p-name", password: "register-p-password" });
+                if (!painted) showToast(data.error || "Registration failed.");
             }
         } catch (err) {
             console.error("Registration error", err);
@@ -357,15 +393,10 @@ function setupAuthListeners() {
         if (!name || !password || !make || !model || !capacity) return;
 
         try {
-            const res = await fetch("/api/auth/register-driver", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, password, make, model, capacity })
-            });
+            const { ok, data } = await apiSend("/api/auth/register-driver",
+                { name, password, make, model, capacity });
 
-            const data = await res.json();
-
-            if (res.ok) {
+            if (ok) {
                 showToast("Driver registration successful! You can now log in.");
                 document.getElementById("register-d-name").value = "";
                 document.getElementById("register-d-password").value = "";
@@ -377,7 +408,11 @@ function setupAuthListeners() {
                 driverRegisterScreen.style.display = "none";
                 authTitleText.innerText = "Sign In to DriveNRide";
             } else {
-                showToast(data.error || "Registration failed.");
+                const painted = applyFieldErrors(e.target, data.fieldErrors, {
+                    name: "register-d-name", password: "register-d-password",
+                    make: "register-d-make", model: "register-d-model", capacity: "register-d-capacity"
+                });
+                if (!painted) showToast(data.error || "Registration failed.");
             }
         } catch (err) {
             console.error("Registration error", err);
@@ -405,27 +440,26 @@ function setupFormListeners() {
         }
 
         try {
-            const res = await fetch("/api/trips", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    driver: { id: parseInt(driverId) },
-                    origin,
-                    destination,
-                    departureTime: new Date(departureTime).toISOString(),
-                    maxStops,
-                    maxDetourMinutes
-                })
+            const { ok, data: errBody } = await apiSend("/api/trips", {
+                driver: { id: parseInt(driverId) },
+                origin,
+                destination,
+                departureTime: new Date(departureTime).toISOString(),
+                maxStops,
+                maxDetourMinutes
             });
-            if (res.ok) {
+            if (ok) {
                 document.getElementById("trip-origin").value = "";
                 document.getElementById("trip-dest").value = "";
                 document.getElementById("trip-time").value = "";
                 logConsole(`[Database] Posted Trip Offer from ${origin} to ${destination}`, "text-indigo");
                 await loadAllData();
             } else {
-                const errBody = await res.json();
-                showToast(errBody.error || "Failed to post trip offer.");
+                const painted = applyFieldErrors(e.target, errBody.fieldErrors, {
+                    origin: "trip-origin", destination: "trip-dest", departureTime: "trip-time",
+                    maxStops: "trip-max-stops", maxDetourMinutes: "trip-max-detour"
+                });
+                if (!painted) showToast(errBody.error || "Failed to post trip offer.");
             }
         } catch (err) {
             console.error("Error creating trip", err);
@@ -449,19 +483,15 @@ function setupFormListeners() {
         }
 
         try {
-            const res = await fetch("/api/rides", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    passenger: { id: parseInt(passengerId) },
-                    origin,
-                    destination,
-                    pickupTimeWindowStart: new Date(start).toISOString(),
-                    pickupTimeWindowEnd: new Date(end).toISOString(),
-                    luggageSize
-                })
+            const { ok, data } = await apiSend("/api/rides", {
+                passenger: { id: parseInt(passengerId) },
+                origin,
+                destination,
+                pickupTimeWindowStart: new Date(start).toISOString(),
+                pickupTimeWindowEnd: new Date(end).toISOString(),
+                luggageSize
             });
-            if (res.ok) {
+            if (ok) {
                 document.getElementById("ride-origin").value = "";
                 document.getElementById("ride-dest").value = "";
                 document.getElementById("ride-window-start").value = "";
@@ -469,92 +499,55 @@ function setupFormListeners() {
                 logConsole(`[Database] Submitted Ride Request from ${origin} to ${destination}`, "text-indigo");
                 await loadAllData();
             } else {
-                const errBody = await res.json();
-                showToast(errBody.error || "Failed to submit ride request.");
+                showToast(data.error || "Failed to submit ride request.");
             }
         } catch (err) {
             console.error("Error creating ride request", err);
         }
     });
 
-    // Submit Passenger Rating Form (Passenger rates Driver)
-    const passengerRatingForm = document.getElementById("passenger-create-rating-form");
-    if (passengerRatingForm) {
-        passengerRatingForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            if (!currentUser) return;
-            const reviewerId = currentUser.id;
-            const revieweeId = document.getElementById("passenger-rating-reviewee").value;
-            const score = parseInt(document.getElementById("passenger-rating-score").value);
-            const type = "PASSENGER_RATED";
+    // Rating forms — both directions submit the same payload to the same endpoint,
+    // differing only in which select they read and how the log line reads (FR-10).
+    wireRatingForm("passenger-create-rating-form", "passenger-rating-reviewee",
+                   "passenger-rating-score", "PASSENGER_RATED", "Driver");
+    wireRatingForm("driver-create-rating-form", "driver-rating-reviewee",
+                   "driver-rating-score", "DRIVER_RATED", "Passenger");
+}
 
-            if (!revieweeId) return;
+/** Wires one of the two rating forms (passenger→driver, driver→passenger). */
+function wireRatingForm(formId, revieweeSelectId, scoreSelectId, type, counterpartLabel) {
+    const form = document.getElementById(formId);
+    if (!form) return;
 
-            try {
-                const res = await fetch("/api/ratings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        reviewer: { id: parseInt(reviewerId) },
-                        reviewee: { id: parseInt(revieweeId) },
-                        score,
-                        type
-                    })
-                });
-                if (res.ok) {
-                    logConsole(`[Ratings] Submitted rating: ${currentUser.name} rated Driver ID ${revieweeId} a score of ${score}`, "text-warning");
-                    document.getElementById("passenger-rating-reviewee").value = "";
-                    document.getElementById("passenger-rating-score").value = "5";
-                    await loadAllData();
-                } else {
-                    const errBody = await res.json();
-                    showToast(errBody.error || "Failed to submit rating review.");
-                }
-            } catch (err) {
-                console.error("Error creating rating", err);
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!currentUser) return;
+
+        const revieweeSelect = document.getElementById(revieweeSelectId);
+        const scoreSelect = document.getElementById(scoreSelectId);
+        const revieweeId = revieweeSelect.value;
+        const score = parseInt(scoreSelect.value);
+        if (!revieweeId) return;
+
+        try {
+            const { ok, data } = await apiSend("/api/ratings", {
+                reviewer: { id: parseInt(currentUser.id) },
+                reviewee: { id: parseInt(revieweeId) },
+                score,
+                type
+            });
+            if (ok) {
+                logConsole(`[Ratings] Submitted rating: ${currentUser.name} rated ${counterpartLabel} ID ${revieweeId} a score of ${score}`, "text-warning");
+                revieweeSelect.value = "";
+                scoreSelect.value = "5";
+                await loadAllData();
+            } else {
+                showToast(data.error || "Failed to submit rating review.");
             }
-        });
-    }
-
-    // Submit Driver Rating Form (Driver rates Passenger)
-    const driverRatingForm = document.getElementById("driver-create-rating-form");
-    if (driverRatingForm) {
-        driverRatingForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            if (!currentUser) return;
-            const reviewerId = currentUser.id;
-            const revieweeId = document.getElementById("driver-rating-reviewee").value;
-            const score = parseInt(document.getElementById("driver-rating-score").value);
-            const type = "DRIVER_RATED";
-
-            if (!revieweeId) return;
-
-            try {
-                const res = await fetch("/api/ratings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        reviewer: { id: parseInt(reviewerId) },
-                        reviewee: { id: parseInt(revieweeId) },
-                        score,
-                        type
-                    })
-                });
-                if (res.ok) {
-                    logConsole(`[Ratings] Submitted rating: ${currentUser.name} rated Passenger ID ${revieweeId} a score of ${score}`, "text-warning");
-                    document.getElementById("driver-rating-reviewee").value = "";
-                    document.getElementById("driver-rating-score").value = "5";
-                    await loadAllData();
-                } else {
-                    const errBody = await res.json();
-                    showToast(errBody.error || "Failed to submit rating review.");
-                }
-            } catch (err) {
-                console.error("Error creating rating", err);
-            }
-        });
-    }
-
+        } catch (err) {
+            console.error("Error creating rating", err);
+        }
+    });
 }
 
 // Setup passenger search listener
@@ -578,25 +571,23 @@ function setupPlannerSearchListener() {
 async function loadAllData() {
     try {
         const [usersRes, vehiclesRes, tripsRes, ridesRes, ratingsRes] = await Promise.all([
-            fetch("/api/users"),
-            fetch("/api/vehicles"),
-            fetch("/api/trips"),
-            fetch("/api/rides"),
-            fetch("/api/ratings")
+            apiGet("/api/users"),
+            apiGet("/api/vehicles"),
+            apiGet("/api/trips"),
+            apiGet("/api/rides"),
+            apiGet("/api/ratings")
         ]);
 
-        users = await usersRes.json();
-        vehicles = await vehiclesRes.json();
-        trips = await tripsRes.json();
-        rides = await ridesRes.json();
-        ratings = await ratingsRes.json();
+        users = usersRes.data;
+        vehicles = vehiclesRes.data;
+        trips = tripsRes.data;
+        rides = ridesRes.data;
+        ratings = ratingsRes.data;
 
         // Render lists & populate select options
         renderPassengersTable();
         renderDriversTable();
-        renderTripsTable();
         renderRidesTable();
-        renderRatingsTable();
         renderDriverTripsTable();
         renderPassengerRidesTable();
         renderDriverVehicleInfo();
@@ -633,7 +624,7 @@ function renderDriverTripsTable() {
         const paxRows = pax.length === 0
             ? `<div class="ride-passenger-row text-muted">No bookings yet.</div>`
             : pax.map(p => {
-                const pName = p.passenger ? p.passenger.name : "Unknown";
+                const pName = esc(p.passenger ? p.passenger.name : "Unknown");
                 const pStatus = p.status || "PENDING";
                 const controls = pStatus === "PENDING"
                     ? ` <button class="btn btn-sm btn-primary confirm-booking-btn" data-id="${p.id}">Confirm</button>
@@ -655,20 +646,20 @@ function renderDriverTripsTable() {
         <div class="ride-card">
             <div class="ride-card-top">
                 <div>
-                    <div class="ride-route">${t.origin} <span class="route-arrow">→</span> ${t.destination} <span class="trip-status ${stClass}">${stLabel}</span></div>
+                    <div class="ride-route">${esc(t.origin)} <span class="route-arrow">→</span> ${esc(t.destination)} <span class="trip-status ${stClass}">${stLabel}</span></div>
                     <div class="ride-meta">
                         <span>🕑 ${formatDateTime(t.departureTime)}</span>
                         <span>🚘 ${seatsTaken}/${capacity} seats booked</span>
                         <span>⛳ max ${t.maxStops} pickups</span>
-                        <span>↺ ${t.maxDetourMinutes} min detour budget</span>
+                        <span>↺ ${formatDuration(t.maxDetourMinutes)} detour budget</span>
                         ${pending > 0 ? `<span class="text-warning">● ${pending} awaiting your decision</span>` : ""}
                     </div>
                 </div>
                 <div class="ride-card-actions">
                     <button class="btn btn-sm btn-secondary route-trip-btn" data-id="${t.id}">🗺 Route</button>
-                    ${hasConfirmed ? `<button class="btn btn-sm btn-primary complete-trip-btn" data-id="${t.id}">🏁 Complete</button>` : ""}
-                    <button class="btn btn-sm btn-secondary edit-trip-btn" data-id="${t.id}">Edit</button>
-                    <button class="btn btn-sm btn-danger delete-trip-btn" data-id="${t.id}">Cancel</button>
+                    ${hasConfirmed && stLabel !== "Completed" ? `<button class="btn btn-sm btn-primary complete-trip-btn" data-id="${t.id}">🏁 Complete</button>` : ""}
+                    ${stLabel !== "Completed" ? `<button class="btn btn-sm btn-secondary edit-trip-btn" data-id="${t.id}">Edit</button>` : ""}
+                    ${stLabel !== "Completed" ? `<button class="btn btn-sm btn-danger delete-trip-btn" data-id="${t.id}">Cancel</button>` : ""}
                 </div>
             </div>
             <div class="ride-passengers">${paxRows}</div>
@@ -711,13 +702,13 @@ function renderPassengerRidesTable() {
         <div class="ride-card">
             <div class="ride-card-top">
                 <div>
-                    <div class="ride-route">${r.origin} <span class="route-arrow">→</span> ${r.destination} ${bookingStatusBadge(status)}</div>
+                    <div class="ride-route">${esc(r.origin)} <span class="route-arrow">→</span> ${esc(r.destination)} ${bookingStatusBadge(status)}</div>
                     <div class="ride-meta">
                         <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
-                        ${r.luggageSize && r.luggageSize !== "NONE" ? `<span class="luggage-chip">🧳 ${r.luggageSize.toLowerCase()} luggage</span>` : ""}
+                        ${r.luggageSize && r.luggageSize !== "NONE" ? `<span class="luggage-chip">🧳 ${esc(r.luggageSize.toLowerCase())} luggage</span>` : ""}
                     </div>
                     ${(() => { const pay = paymentForRequest(r.id); return pay
-                        ? `<div class="pay-line ${pay.status === "HELD" ? "held" : ""}">${pay.status === "HELD" ? "⏳ Payment on hold" : "✔ Paid " + fmtEUR(pay.amount)} · ${pay.reference}</div>`
+                        ? `<div class="pay-line ${pay.status === "HELD" ? "held" : ""}">${pay.status === "HELD" ? "⏳ Payment on hold" : "✔ Paid " + fmtEUR(pay.amount)} · ${esc(pay.reference)}</div>`
                         : ""; })()}
                 </div>
                 <div class="ride-card-actions">${actions}</div>
@@ -748,9 +739,9 @@ function renderPassengersTable() {
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${u.id}</td>
-            <td><strong>${u.name}</strong></td>
+            <td><strong>${esc(u.name)}</strong></td>
             <td>⭐ ${u.reputationScore.toFixed(2)}</td>
-            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${u.incentiveTier}</span></td>
+            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(u.incentiveTier)}</span></td>
         `;
         tbody.appendChild(tr);
     });
@@ -769,28 +760,11 @@ function renderDriversTable() {
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${u.id}</td>
-            <td><strong>${u.name}</strong></td>
+            <td><strong>${esc(u.name)}</strong></td>
             <td>⭐ ${u.reputationScore.toFixed(2)}</td>
-            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${u.incentiveTier}</span></td>
-            <td>${vehicle ? `${vehicle.make} ${vehicle.model}` : "No Vehicle"}</td>
+            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(u.incentiveTier)}</span></td>
+            <td>${vehicle ? `${esc(vehicle.make)} ${esc(vehicle.model)}` : "No Vehicle"}</td>
             <td>👤 ${vehicle ? vehicle.capacity : 0} seats</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-function renderTripsTable() {
-    const tbody = document.querySelector("#trips-table tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    trips.forEach(t => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${t.id}</td>
-            <td>${t.driver ? t.driver.name : "N/A"}</td>
-            <td><strong>${t.origin} → ${t.destination}</strong></td>
-            <td>${formatDateTime(t.departureTime)}</td>
-            <td>Max Stops: ${t.maxStops} | Max Extra Time: ${t.maxDetourMinutes} mins</td>
         `;
         tbody.appendChild(tr);
     });
@@ -819,8 +793,8 @@ async function renderRidesTable() {
         if (myTrips.length > 0) {
             rankTrip = myTrips[0];
             try {
-                const res = await fetch(`/api/policies/rank/${currentUser.id}/${rankTrip.id}`);
-                if (res.ok) ranked = await res.json();
+                const { ok, data } = await apiGet(`/api/policies/rank/${currentUser.id}/${rankTrip.id}`);
+                if (ok) ranked = data;
             } catch (e) {
                 console.error("Ranking fetch failed:", e);
             }
@@ -837,17 +811,16 @@ async function renderRidesTable() {
             <div class="ride-card-top">
                 <div>
                     <div class="ride-route">
-                        <span class="pax-avatar">${pName.charAt(0).toUpperCase()}</span>
-                        ${pName} needs: ${r.origin} <span class="route-arrow">→</span> ${r.destination} ${scoreHtml}
+                        <span class="pax-avatar">${esc(pName.charAt(0).toUpperCase())}</span>
+                        ${esc(pName)} needs: ${esc(r.origin)} <span class="route-arrow">→</span> ${esc(r.destination)} ${scoreHtml}
                     </div>
                     <div class="ride-meta">
                         <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
-                        <span>${r.luggageSize && r.luggageSize !== "NONE" ? `🧳 ${r.luggageSize.toLowerCase()} luggage` : "🧳 no luggage"}${rep}</span>
+                        <span>${r.luggageSize && r.luggageSize !== "NONE" ? `🧳 ${esc(r.luggageSize.toLowerCase())} luggage` : "🧳 no luggage"}${rep}</span>
                     </div>
                 </div>
                 <div class="ride-card-actions">
-                    <button class="btn btn-sm btn-primary"
-                        onclick="offerRideForRequest('${r.origin}', '${r.destination}', ${r.id}, ${pid}, '${r.pickupTimeWindowStart}', '${r.pickupTimeWindowEnd}')">
+                    <button class="btn btn-sm btn-primary offer-ride-btn" data-request-id="${r.id}">
                         Offer Ride
                     </button>
                 </div>
@@ -855,11 +828,25 @@ async function renderRidesTable() {
         </div>`;
     };
 
+    // Offer Ride is wired by listener, so a request's free-text origin can never
+    // break out of an inline handler into script context.
+    const wireOfferButtons = () => {
+        list.querySelectorAll(".offer-ride-btn").forEach(btn =>
+            btn.addEventListener("click", e => {
+                const id = parseInt(e.currentTarget.getAttribute("data-request-id"));
+                const req = rides.find(x => x.id === id);
+                if (!req) return;
+                offerRideForRequest(req.origin, req.destination, req.id,
+                    req.passenger ? req.passenger.id : null,
+                    req.pickupTimeWindowStart, req.pickupTimeWindowEnd);
+            }));
+    };
+
     if (ranked && rankTrip) {
         const filtered = activeRides.length - ranked.length;
         const banner = `
             <div class="rank-banner">
-                Ranked by <strong>your travel policy</strong> for trip ${rankTrip.origin} → ${rankTrip.destination}
+                Ranked by <strong>your travel policy</strong> for trip ${esc(rankTrip.origin)} → ${esc(rankTrip.destination)}
                 — best matches first${filtered > 0 ? ` · <strong>${filtered}</strong> candidate(s) filtered out by your rules` : ""}.
             </div>`;
         if (ranked.length === 0) {
@@ -868,30 +855,15 @@ async function renderRidesTable() {
         }
         list.innerHTML = banner + ranked.map(rc => {
             const bd = Object.entries(rc.breakdown || {}).map(([k, v]) => `${k}: ${v}`).join("  ·  ");
-            const chip = `<span class="score-chip" title="${bd}">match ${rc.score}</span>`;
+            const chip = `<span class="score-chip" title="${esc(bd)}">match ${rc.score}</span>`;
             return requestCard(rc.request, chip);
         }).join("");
+        wireOfferButtons();
         return;
     }
 
     list.innerHTML = activeRides.map(r => requestCard(r, "")).join("");
-}
-
-function renderRatingsTable() {
-    const tbody = document.querySelector("#ratings-table-list tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    ratings.forEach(r => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${r.id}</td>
-            <td>${r.reviewer ? r.reviewer.name : `User ${r.reviewerId}`}</td>
-            <td>${r.reviewee ? r.reviewee.name : `User ${r.revieweeId}`}</td>
-            <td>${"★".repeat(r.score)}${"☆".repeat(5 - r.score)} (${r.score})</td>
-            <td><span class="badge ${r.type === 'DRIVER_RATED' ? 'badge-driver' : 'badge-passenger'}">${r.type}</span></td>
-        `;
-        tbody.appendChild(tr);
-    });
+    wireOfferButtons();
 }
 
 // Populate rating dropdowns — FR-10 integrity: only counterparts from
@@ -901,8 +873,8 @@ async function populateDropdowns() {
 
     let rateable = [];
     try {
-        const res = await fetch(`/api/bookings/rateable/${currentUser.id}`);
-        if (res.ok) rateable = await res.json();
+        const { ok, data } = await apiGet(`/api/bookings/rateable/${currentUser.id}`);
+        if (ok) rateable = data;
     } catch (e) {
         console.error("Failed to load rateable counterparts:", e);
     }
@@ -917,7 +889,7 @@ async function populateDropdowns() {
             return;
         }
         select.innerHTML = `<option value="">${placeholder}</option>` +
-            options.map(u => `<option value="${u.id}">${u.name} (⭐ ${(u.reputationScore ?? 5).toFixed(2)})</option>`).join("");
+            options.map(u => `<option value="${u.id}">${esc(u.name)} (⭐ ${(u.reputationScore ?? 5).toFixed(2)})</option>`).join("");
         if (previousVal) select.value = previousVal;
     };
 
@@ -964,28 +936,31 @@ async function runPlannerSearch() {
             return;
         }
 
-        const res = await fetch("/api/trips/search-matches", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
+        const { ok, data: matches } = await apiSend("/api/trips/search-matches", payload);
 
-        if (!res.ok) {
-            const errText = await res.text();
-            outputContainer.innerHTML = `<div class="info-text" style="background-color: var(--accent-error-bg); color: var(--accent-error);">Error searching matches: ${errText}</div>`;
+        if (!ok) {
+            outputContainer.innerHTML = `<div class="info-text" style="background-color: var(--accent-error-bg); color: var(--accent-error);">Error searching matches: ${esc(matches.error || "unknown error")}</div>`;
             return;
         }
 
-        const matches = await res.json();
-        
         // Log Mapping events to the COTS console
         logConsole(`[Google Maps API] Checked detour for ${origin} → ${destination} for passenger ${currentUser.name}`, "text-indigo");
 
         if (matches.length === 0) {
             outputContainer.innerHTML = `
                 <div class="welcome-box">
-                    <div class="welcome-icon">⚠️</div>
-                    <p>No matching trips found for this date. Try another date or route.</p>
+                    <div class="welcome-icon">🔍</div>
+                    <p><strong>No matching rides for that day.</strong></p>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 6px 0 10px 0;">
+                        Drivers publish trips with detour budgets and time windows — a near miss is common. Things that usually help:
+                        widen your pickup time window, try the day before or after, or search from a bigger nearby hub.
+                    </p>
+                    <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                        <button type="button" class="btn-secondary" style="font-size: 0.8rem;"
+                            onclick="swapInputs('search-origin','search-dest'); document.getElementById('search-rides-form').requestSubmit();">⇄ Try the reverse route</button>
+                        <button type="button" class="btn-secondary" style="font-size: 0.8rem;"
+                            onclick="navigateTo('view-my-bookings')">📬 Post a ride request instead</button>
+                    </div>
                 </div>
             `;
             const mapEl = document.getElementById("map");
@@ -1024,12 +999,13 @@ function renderSearchResults(matches, searchPayload) {
     }
 
     futureMatches.forEach((match, idx) => {
+        const stops = (match.routing && match.routing.stops) || [];
         html += `
             <div class="card match-card" style="margin-bottom: 20px; border: 1px solid var(--border-color); padding: 18px; position: relative;">
                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
                     <div>
-                        <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">${match.driverName}</h4>
-                        <p style="margin: 2px 0; font-size: 0.78rem; color: var(--text-secondary);">${match.vehicleInfo}</p>
+                        <h4 style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">${esc(match.driverName)}</h4>
+                        <p style="margin: 2px 0; font-size: 0.78rem; color: var(--text-secondary);">${esc(match.vehicleInfo)}</p>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 1.25rem; font-weight: 700; color: var(--accent-success);">${fmtEUR(match.pricing.finalFare)}</span>
@@ -1039,21 +1015,22 @@ function renderSearchResults(matches, searchPayload) {
 
                 <div class="grid-2col-nested" style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 8px; border-top: 1px solid var(--border-color); padding: 8px 0 4px 0;">
                     <div>📅 Departure: <strong>${formatDateTime(match.departureTime)}</strong></div>
-                    <div>⏱️ Your ride: <strong>${match.yourRide && match.yourRide.inCarTimeMinutes != null ? "≈ " + match.yourRide.inCarTimeMinutes + " min" : "–"}</strong></div>
+                    <div>⏱️ Your ride: <strong>${match.yourRide && match.yourRide.inCarTimeMinutes != null ? "≈ " + formatDuration(match.yourRide.inCarTimeMinutes) : "–"}</strong></div>
                     <div>🚗 Your distance: <strong>${match.yourRide && match.yourRide.distanceKm != null ? match.yourRide.distanceKm + " km" : "–"}</strong></div>
                     <div>👥 ${match.coPassengers > 0 ? `Sharing with <strong>${match.coPassengers}</strong> rider${match.coPassengers > 1 ? "s" : ""} · ` : ""}<strong>${match.spotsAvailable}</strong> seat${match.spotsAvailable !== 1 ? "s" : ""} left</div>
                 </div>
-                <p style="font-size: 0.72rem; color: var(--text-muted); margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
-                    Part of ${match.driverName}'s trip ${match.routing && match.routing.sequence && match.routing.sequence.length ? match.routing.sequence[0].replace("Origin: ", "") : ""} → ${match.routing && match.routing.sequence && match.routing.sequence.length ? match.routing.sequence[match.routing.sequence.length - 1].replace("Destination: ", "") : ""} (${match.totalDistanceKm.toFixed(0)} km, ${match.totalTimeMinutes} min in total${match.yourRide && match.yourRide.stopsBeforeDropoff > 0 ? `; ${match.yourRide.stopsBeforeDropoff} stop${match.yourRide.stopsBeforeDropoff > 1 ? "s" : ""} before your drop-off` : ""}).
-                </p>
+                ${stops.length > 4 ? `<p style="font-size: 0.72rem; color: var(--text-muted); margin: 0 0 12px 0; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                    Part of ${esc(match.driverName)}'s longer trip ${esc(stops[0].location)} → ${esc(stops[stops.length - 1].location)}${match.yourRide && match.yourRide.stopsBeforeDropoff > 0 ? ` · ${match.yourRide.stopsBeforeDropoff} stop${match.yourRide.stopsBeforeDropoff > 1 ? "s" : ""} before your drop-off` : ""}.
+                </p>` : ""}
 
                 <div style="margin-bottom: 15px;">
-                    <h5 style="margin: 0 0 6px 0; font-size: 0.85rem; color: var(--text-secondary);">Route Stops:</h5>
+                    <h5 style="margin: 0 0 6px 0; font-size: 0.85rem; color: var(--text-secondary);">Your journey:</h5>
                     <div class="mini-timeline" style="font-size: 0.78rem; border-left: 2px dashed var(--border-color); padding-left: 10px; margin-left: 4px;">
         `;
 
-        match.routing.sequence.forEach((stop) => {
-            html += `<div style="margin-bottom: 4px; color: var(--text-primary);">${stop}</div>`;
+        stops.forEach((stop) => {
+            const s = friendlyStopLabel(stop);
+            html += `<div style="margin-bottom: 4px; color: ${s.mine ? "var(--text-primary)" : "var(--text-secondary)"}; ${s.mine ? "font-weight: 600;" : ""}">${s.icon} ${esc(s.text)}</div>`;
         });
 
         html += `
@@ -1078,7 +1055,7 @@ function renderSearchResults(matches, searchPayload) {
             const selectedMatch = matches[index];
             if (mapEl) {
                 mapEl.style.display = "block";
-                renderRouteMap(selectedMatch.routing.sequence);
+                renderRouteMap(selectedMatch.routing.stops);
                 logConsole(`[Google Maps API] Displaying route sequence map for Trip Offer ${selectedMatch.tripOfferId}`, "text-indigo");
             }
         });
@@ -1107,19 +1084,13 @@ async function bookTrip(tripOfferId, searchPayload) {
 
     try {
         const startTime = Date.now();
-        const res = await fetch(`/api/trips/${tripOfferId}/book-passenger`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(searchPayload)
-        });
+        const { ok, data } = await apiSend(`/api/trips/${tripOfferId}/book-passenger`, searchPayload);
 
-        if (!res.ok) {
-            const errText = await res.text();
-            outputContainer.innerHTML = `<div class="info-text" style="background-color: var(--accent-error-bg); color: var(--accent-error);">Booking failed: ${errText}</div>`;
+        if (!ok) {
+            outputContainer.innerHTML = `<div class="info-text" style="background-color: var(--accent-error-bg); color: var(--accent-error);">Booking failed: ${esc(data.error || "unknown error")}</div>`;
             return;
         }
 
-        const data = await res.json();
         const durationMs = Date.now() - startTime;
 
         // Log events to console
@@ -1161,7 +1132,7 @@ function renderBookingConfirmation(data, trip, durationMs) {
         <div class="result-header">
             <div>
                 <h3>Booking Confirmation Summary</h3>
-                <p style="font-size: 0.78rem; color: var(--text-secondary);">Processed in <strong>${durationMs}ms</strong>${receipt ? ` · Payment ${receipt.status === "HELD" ? "on hold" : "completed"}: <strong>${fmtEUR(receipt.amount)}</strong> · ref <strong>${receipt.reference}</strong>` : ""}</p>
+                <p style="font-size: 0.78rem; color: var(--text-secondary);">Processed in <strong>${durationMs}ms</strong>${receipt ? ` · Payment ${receipt.status === "HELD" ? "on hold" : "completed"}: <strong>${fmtEUR(receipt.amount)}</strong> · ref <strong>${esc(receipt.reference)}</strong>` : ""}</p>
             </div>
             <span class="result-status-badge ${routing.feasible ? 'status-success' : 'status-failed'}">
                 ${routing.feasible ? 'BOOKING CONFIRMED' : 'BOOKING FAILED'}
@@ -1185,14 +1156,14 @@ function renderBookingConfirmation(data, trip, durationMs) {
     const mapEl = document.getElementById("map");
     if (mapEl) {
         mapEl.style.display = "block";
-        renderRouteMap(routing.sequence);
+        renderRouteMap(routing.stops);
     }
 
     html += `
         <div class="result-metrics">
             <div class="metric-item">
                 <span class="metric-label">Estimated Time</span>
-                <span class="metric-value">${routing.totalTimeMinutes} Minutes</span>
+                <span class="metric-value">${formatDuration(routing.totalTimeMinutes)}</span>
             </div>
             <span style="border-left: 1px solid var(--border-color); height: 35px; align-self: center;"></span>
             <div class="metric-item">
@@ -1212,28 +1183,17 @@ function renderBookingConfirmation(data, trip, durationMs) {
                 <div class="timeline-container">
     `;
 
-    routing.sequence.forEach((stop, index) => {
-        let stepClass = "";
-        let stepDesc = "";
-        
-        if (index === 0) {
-            stepClass = "origin";
-            stepDesc = "Driver starts trip";
-        } else if (index === routing.sequence.length - 1) {
-            stepClass = "destination";
-            stepDesc = "Driver arrives at destination";
-        } else if (stop.startsWith("PICKUP")) {
-            stepClass = "pickup";
-            stepDesc = "Passenger pickup stop";
-        } else if (stop.startsWith("DROPOFF")) {
-            stepClass = "dropoff";
-            stepDesc = "Passenger dropoff destination";
-        }
-
+    const STEP_DESCRIPTIONS = {
+        ORIGIN: "Driver starts trip",
+        PICKUP: "Passenger pickup stop",
+        DROPOFF: "Passenger dropoff destination",
+        DESTINATION: "Driver arrives at destination"
+    };
+    (routing.stops || []).forEach((stop) => {
         html += `
-            <div class="timeline-step ${stepClass}">
-                <div class="step-title">${stop}</div>
-                <div class="step-desc">${stepDesc}</div>
+            <div class="timeline-step ${stop.kind.toLowerCase()}">
+                <div class="step-title">${esc(stop.label)}</div>
+                <div class="step-desc">${STEP_DESCRIPTIONS[stop.kind] || ""}</div>
             </div>
         `;
     });
@@ -1251,14 +1211,14 @@ function renderBookingConfirmation(data, trip, durationMs) {
             html += `
                 <div class="passenger-pricing-card">
                     <div class="pricing-card-header">
-                        <span class="pricing-card-name">${p.passengerName}</span>
+                        <span class="pricing-card-name">${esc(p.passengerName)}</span>
                         <span class="pricing-card-fare">${fmtEUR(p.pricing.finalFare)}</span>
                     </div>
                     <div class="pricing-details-grid">
                         <div>Base Fare:</div>
                         <div style="text-align: right;">${fmtEUR(p.pricing.baseFare)}</div>
                         <div>Reputation:</div>
-                        <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${p.incentiveTier})</div>
+                        <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${esc(p.incentiveTier)})</div>
                         <div>COTS Stripe:</div>
                         <div style="text-align: right; color: ${p.paymentCleared ? 'var(--accent-success)' : 'var(--accent-error)'}; font-weight: 600;">
                             ${p.paymentCleared ? 'Paid' : 'Hold'}
@@ -1269,7 +1229,7 @@ function renderBookingConfirmation(data, trip, durationMs) {
             if (p.pricing.appliedPolicies && p.pricing.appliedPolicies.length > 0) {
                 html += `<div class="applied-policy-list">`;
                 p.pricing.appliedPolicies.forEach(pol => {
-                    html += `<span class="policy-badge">${pol}</span>`;
+                    html += `<span class="policy-badge">${esc(pol)}</span>`;
                 });
                 html += `</div>`;
             } else {
@@ -1280,150 +1240,6 @@ function renderBookingConfirmation(data, trip, durationMs) {
         });
     } else {
         html += `<p class="placeholder-text">No passenger request details returned.</p>`;
-    }
-
-    html += `
-            </div>
-        </div>
-    `;
-
-    container.innerHTML = html;
-}
-
-// Render planner results
-function renderPlannerOutput(data, trip, durationMs) {
-    const container = document.getElementById("planner-output-container");
-    const routing = data.routing;
-    
-    if (!routing) return;
-
-    let html = `
-        <div class="result-header">
-            <div>
-                <h3>Matching Results Summary</h3>
-                <p style="font-size: 0.78rem; color: var(--text-secondary);">Algorithm computed in <strong>${durationMs}ms</strong></p>
-            </div>
-            <span class="result-status-badge ${routing.feasible ? 'status-success' : 'status-failed'}">
-                ${routing.feasible ? 'FEASIBLE ROUTE FOUND' : 'INFEASIBLE ROUTE'}
-            </span>
-        </div>
-    `;
-
-    if (!routing.feasible) {
-        html += `
-            <div class="card" style="border-color: var(--accent-error); background-color: var(--accent-error-bg); padding: 18px; margin-bottom: 20px;">
-                <h4 style="color: var(--accent-error); margin-bottom: 6px;">No Matching Ride Found</h4>
-                <p style="font-size: 0.88rem; color: var(--text-primary);">We couldn't find a driver trip that can accommodate this ride. This could be because the detour is too long for the driver, or the vehicle is full. Please try adjusting your pickup time or locations.</p>
-            </div>
-        `;
-        container.innerHTML = html;
-        const mapEl = document.getElementById("map");
-        if (mapEl) mapEl.style.display = "none";
-        return;
-    }
-
-    // Show map container
-    const mapEl = document.getElementById("map");
-    if (mapEl) {
-        mapEl.style.display = "block";
-        renderRouteMap(routing.sequence);
-    }
-
-    // Success layout metrics
-    html += `
-        <div class="result-metrics">
-            <div class="metric-item">
-                <span class="metric-label">Estimated Time</span>
-                <span class="metric-value">${routing.totalTimeMinutes} Minutes</span>
-            </div>
-            <span style="border-left: 1px solid var(--border-color); height: 35px; align-self: center;"></span>
-            <div class="metric-item">
-                <span class="metric-label">Trip Distance</span>
-                <span class="metric-value">${routing.totalDistanceKm.toFixed(1)} km</span>
-            </div>
-            <span style="border-left: 1px solid var(--border-color); height: 35px; align-self: center;"></span>
-            <div class="metric-item">
-                <span class="metric-label">Status</span>
-                <span class="metric-value" style="color: var(--accent-success);">${data.bookingStatus}</span>
-            </div>
-        </div>
-        
-        <div class="grid-2col-nested" style="margin-top: 24px; align-items: start;">
-            <!-- Timeline Stops -->
-            <div>
-                <h4 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 12px;">Optimal Stopping Timeline</h4>
-                <div class="timeline-container">
-    `;
-
-    routing.sequence.forEach((stop, index) => {
-        let stepClass = "";
-        let stepDesc = "";
-        
-        if (index === 0) {
-            stepClass = "origin";
-            stepDesc = "Driver starts trip";
-        } else if (index === routing.sequence.length - 1) {
-            stepClass = "destination";
-            stepDesc = "Driver arrives at destination";
-        } else if (stop.startsWith("PICKUP")) {
-            stepClass = "pickup";
-            stepDesc = "Passenger pickup stop";
-        } else if (stop.startsWith("DROPOFF")) {
-            stepClass = "dropoff";
-            stepDesc = "Passenger dropoff destination";
-        }
-
-        html += `
-            <div class="timeline-step ${stepClass}">
-                <div class="step-title">${stop}</div>
-                <div class="step-desc">${stepDesc}</div>
-            </div>
-        `;
-    });
-
-    html += `
-                </div>
-            </div>
-            
-            <!-- Pricing breakdown cards -->
-            <div class="passengers-pricing-breakdown" style="margin-top: 0;">
-                <h4 style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 12px;">Fares & Policy Breakdown</h4>
-    `;
-
-    if (data.passengers && data.passengers.length > 0) {
-        data.passengers.forEach(p => {
-            html += `
-                <div class="passenger-pricing-card">
-                    <div class="pricing-card-header">
-                        <span class="pricing-card-name">${p.passengerName}</span>
-                        <span class="pricing-card-fare">${fmtEUR(p.pricing.finalFare)}</span>
-                    </div>
-                    <div class="pricing-details-grid">
-                        <div>Base Fare:</div>
-                        <div style="text-align: right;">${fmtEUR(p.pricing.baseFare)}</div>
-                        <div>Reputation:</div>
-                        <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${p.incentiveTier})</div>
-                        <div>COTS Stripe:</div>
-                        <div style="text-align: right; color: ${p.paymentCleared ? 'var(--accent-success)' : 'var(--accent-error)'}; font-weight: 600;">
-                            ${p.paymentCleared ? 'Paid' : 'Hold'}
-                        </div>
-                    </div>
-            `;
-
-            if (p.pricing.appliedPolicies && p.pricing.appliedPolicies.length > 0) {
-                html += `<div class="applied-policy-list">`;
-                p.pricing.appliedPolicies.forEach(pol => {
-                    html += `<span class="policy-badge">${pol}</span>`;
-                });
-                html += `</div>`;
-            } else {
-                html += `<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 10px; font-style: italic;">No surcharges or discounts applied.</div>`;
-            }
-
-            html += `</div>`;
-        });
-    } else {
-        html += `<p class="placeholder-text">No passenger requests were included in this route.</p>`;
     }
 
     html += `
@@ -1451,6 +1267,20 @@ function logConsole(message, cssClass = "") {
 function getTierClass(tier) {
     if (tier === "PREMIUM_PRICING") return "premium";
     return tier.toLowerCase();
+}
+
+/**
+ * Human-readable duration from a count of minutes.
+ * The API speaks minutes throughout; only the display is converted, so a
+ * 95-minute trip reads "1 h 35 min" rather than "95 Minutes".
+ *   45 → "45 min" · 60 → "1 h" · 95 → "1 h 35 min"
+ */
+function formatDuration(minutes) {
+    const total = Math.max(0, Math.round(Number(minutes) || 0));
+    const hours = Math.floor(total / 60);
+    const mins = total % 60;
+    if (hours === 0) return `${mins} min`;
+    return mins === 0 ? `${hours} h` : `${hours} h ${mins} min`;
 }
 
 function formatDateTime(isoString) {
@@ -1522,35 +1352,23 @@ function initGoogleMap() {
 
 let googleMapsAuthFailed = false;
 
+/** The stops most recently drawn, so an auth failure can redraw without scraping the DOM. */
+let lastRenderedStops = null;
+
 window.gm_authFailure = () => {
     googleMapsAuthFailed = true;
     logConsole("[Google Maps] API Key authorization failed. Maps JavaScript API might not be enabled on your GCP Console. Using visual route sequence fallback.", "text-warning");
-    // If the map is displayed, redraw using fallback visualization
     const mapEl = document.getElementById("map");
     if (mapEl && mapEl.style.display !== "none") {
-        const container = document.getElementById("planner-output-container");
-        // Look for routing sequence displayed on the screen to redraw
-        const miniTimeline = container.querySelector(".mini-timeline");
-        if (miniTimeline) {
-            const sequence = Array.from(miniTimeline.children).map(div => div.innerText);
-            showFallbackRouteVisualization(sequence);
-        } else {
-            const timelineSteps = container.querySelectorAll(".step-title");
-            if (timelineSteps.length > 0) {
-                const sequence = Array.from(timelineSteps).map(div => div.innerText);
-                showFallbackRouteVisualization(sequence);
-            } else {
-                showFallbackRouteVisualization(null);
-            }
-        }
+        showFallbackRouteVisualization(lastRenderedStops);
     }
 };
 
-function showFallbackRouteVisualization(sequence) {
+function showFallbackRouteVisualization(planned) {
     const mapEl = document.getElementById("map");
     if (!mapEl) return;
 
-    if (!sequence || sequence.length === 0) {
+    if (!planned || planned.length === 0) {
         mapEl.innerHTML = `
             <div style="padding: 24px; text-align: center; color: var(--text-secondary); background: rgba(255,255,255,0.02); height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: var(--radius-md); box-sizing: border-box; height: 380px;">
                 <div style="font-size: 2rem; margin-bottom: 12px;">🗺️</div>
@@ -1563,18 +1381,13 @@ function showFallbackRouteVisualization(sequence) {
         return;
     }
 
-    const stops = sequence.map((s, index) => {
-        if (s.startsWith("Origin: ")) {
-            return { name: s.replace("Origin: ", "").trim(), type: "origin", label: "Origin" };
-        } else if (s.startsWith("Destination: ")) {
-            return { name: s.replace("Destination: ", "").trim(), type: "destination", label: "Destination" };
-        } else if (s.includes(" at ")) {
-            const parts = s.split(" at ");
-            const typeStr = parts[0].toLowerCase().includes("pickup") ? "pickup" : "dropoff";
-            return { name: parts[1].trim(), type: typeStr, label: parts[0].trim() };
-        }
-        return { name: s, type: "stop", label: "Stop " + (index + 1) };
-    });
+    const stops = planned.map(stop => ({
+        name: stop.location,
+        type: stop.kind.toLowerCase(),
+        label: stop.kind === "ORIGIN" ? "Origin"
+             : stop.kind === "DESTINATION" ? "Destination"
+             : `${stop.kind}(${stop.passengerName})`
+    }));
     let html = `
         <div style="padding: 24px; color: var(--text-primary); background: rgba(18,24,34,0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: var(--radius-md); box-sizing: border-box; border: 1px solid var(--border-color); height: 380px;">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px; width: 100%; justify-content: center;">
@@ -1609,10 +1422,10 @@ function showFallbackRouteVisualization(sequence) {
                     ${icon}
                 </div>
                 <div style="font-size: 0.76rem; font-weight: 600; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 100%;">
-                    ${stop.name}
+                    ${esc(stop.name)}
                 </div>
                 <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; width: 100%;">
-                    ${stop.label}
+                    ${esc(stop.label)}
                 </div>
             </div>
         `;
@@ -1638,33 +1451,24 @@ function showFallbackRouteVisualization(sequence) {
     mapEl.innerHTML = html;
 }
 
-function renderRouteMap(sequence) {
-    if (!sequence || sequence.length < 2) return;
-    
+function renderRouteMap(planned) {
+    if (!planned || planned.length < 2) return;
+    lastRenderedStops = planned;
+
     // Use visual route sequence fallback if API key failed authentication
     if (googleMapsAuthFailed || typeof google === "undefined" || !google.maps) {
-        showFallbackRouteVisualization(sequence);
+        showFallbackRouteVisualization(planned);
         return;
     }
-    
+
     initGoogleMap();
-    
+
     if (googleMapsAuthFailed) {
-        showFallbackRouteVisualization(sequence);
+        showFallbackRouteVisualization(planned);
         return;
     }
-    
-    // Parse stop names from labels
-    const stops = sequence.map(s => {
-        if (s.startsWith("Origin: ")) {
-            return s.replace("Origin: ", "").trim();
-        } else if (s.startsWith("Destination: ")) {
-            return s.replace("Destination: ", "").trim();
-        } else if (s.includes(" at ")) {
-            return s.substring(s.lastIndexOf(" at ") + 4).trim();
-        }
-        return s;
-    });
+
+    const stops = planned.map(stop => stop.location);
 
     if (directionsService && directionsRenderer) {
         const originAddr = stops[0];
@@ -1686,25 +1490,10 @@ function renderRouteMap(sequence) {
                 directionsRenderer.setDirections(result);
             } else {
                 console.error("Google Maps Directions API returned: " + status);
-                showFallbackRouteVisualization(sequence);
+                showFallbackRouteVisualization(planned);
             }
         });
     }
-}
-
-// Helper to format ISO date to datetime-local format
-function toDatetimeLocal(isoString) {
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    const ten = function (i) {
-        return (i < 10 ? '0' : '') + i;
-    };
-    const YYYY = date.getFullYear();
-    const MM = ten(date.getMonth() + 1);
-    const DD = ten(date.getDate());
-    const HH = ten(date.getHours());
-    const MIN = ten(date.getMinutes());
-    return `${YYYY}-${MM}-${DD}T${HH}:${MIN}`;
 }
 
 // Render driver vehicle details read-only
@@ -1716,7 +1505,7 @@ function renderDriverVehicleInfo() {
     // Find vehicle registered to driver
     const vehicle = vehicles.find(v => v.driver && v.driver.id === currentUser.id);
     if (vehicle) {
-        displayEl.innerHTML = `🚗 <strong>Registered Vehicle:</strong> ${vehicle.make} ${vehicle.model} (${vehicle.capacity} seats max)`;
+        displayEl.innerHTML = `🚗 <strong>Registered Vehicle:</strong> ${esc(vehicle.make)} ${esc(vehicle.model)} (${vehicle.capacity} seats max)`;
     } else {
         displayEl.innerHTML = `⚠️ <strong>No vehicle registered.</strong> Please contact administration.`;
     }
@@ -1730,7 +1519,7 @@ function openEditTripModal(tripId) {
     document.getElementById("edit-trip-id").value = tripId;
     document.getElementById("edit-trip-origin").value = trip.origin;
     document.getElementById("edit-trip-dest").value = trip.destination;
-    document.getElementById("edit-trip-time").value = toDatetimeLocal(trip.departureTime);
+    document.getElementById("edit-trip-time").value = toLocalInputValue(trip.departureTime);
     document.getElementById("edit-trip-max-stops").value = trip.maxStops;
     document.getElementById("edit-trip-max-detour").value = trip.maxDetourMinutes;
 
@@ -1741,14 +1530,12 @@ async function deleteTrip(tripId) {
     if (!(await showConfirm("Are you sure you want to cancel this ride offer?", "Cancel Offer", "Keep"))) return;
 
     try {
-        const res = await fetch(`/api/trips/${tripId}`, {
-            method: "DELETE"
-        });
-        if (res.ok) {
+        const { ok, data } = await apiSend(`/api/trips/${tripId}?actorId=${currentUser.id}`, undefined, "DELETE");
+        if (ok) {
             logConsole(`[Database] Cancelled Trip Offer ID: ${tripId}`, "text-warning");
             await loadAllData();
         } else {
-            showToast("Failed to cancel trip.");
+            showToast(data.error || "Failed to cancel trip.");
         }
     } catch (err) {
         console.error("Error cancelling trip", err);
@@ -1763,8 +1550,8 @@ function openEditRideModal(rideId) {
     document.getElementById("edit-ride-id").value = rideId;
     document.getElementById("edit-ride-origin").value = ride.origin;
     document.getElementById("edit-ride-dest").value = ride.destination;
-    document.getElementById("edit-ride-window-start").value = toDatetimeLocal(ride.pickupTimeWindowStart);
-    document.getElementById("edit-ride-window-end").value = toDatetimeLocal(ride.pickupTimeWindowEnd);
+    document.getElementById("edit-ride-window-start").value = toLocalInputValue(ride.pickupTimeWindowStart);
+    document.getElementById("edit-ride-window-end").value = toLocalInputValue(ride.pickupTimeWindowEnd);
 
     document.getElementById("edit-ride-modal").style.display = "flex";
 }
@@ -1773,14 +1560,12 @@ async function deleteRide(rideId) {
     if (!(await showConfirm("Are you sure you want to cancel this booking/request?", "Cancel It", "Keep"))) return;
 
     try {
-        const res = await fetch(`/api/rides/${rideId}`, {
-            method: "DELETE"
-        });
-        if (res.ok) {
+        const { ok, data } = await apiSend(`/api/rides/${rideId}?actorId=${currentUser.id}`, undefined, "DELETE");
+        if (ok) {
             logConsole(`[Database] Cancelled Ride Booking/Request ID: ${rideId}`, "text-warning");
             await loadAllData();
         } else {
-            showToast("Failed to cancel booking/request.");
+            showToast(data.error || "Failed to cancel booking/request.");
         }
     } catch (err) {
         console.error("Error cancelling booking/request", err);
@@ -1818,26 +1603,21 @@ function setupEditModalListeners() {
         const maxDetourMinutes = parseInt(document.getElementById("edit-trip-max-detour").value);
 
         try {
-            const res = await fetch(`/api/trips/${tripId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    driver: { id: currentUser.id },
-                    origin,
-                    destination,
-                    departureTime: new Date(departureTime).toISOString(),
-                    maxStops,
-                    maxDetourMinutes
-                })
-            });
+            const { ok, data } = await apiSend(`/api/trips/${tripId}?actorId=${currentUser.id}`, {
+                driver: { id: currentUser.id },
+                origin,
+                destination,
+                departureTime: new Date(departureTime).toISOString(),
+                maxStops,
+                maxDetourMinutes
+            }, "PUT");
 
-            if (res.ok) {
+            if (ok) {
                 document.getElementById("edit-trip-modal").style.display = "none";
                 logConsole(`[Database] Updated Trip Offer ID: ${tripId}`, "text-indigo");
                 await loadAllData();
             } else {
-                const errorText = await res.text();
-                showToast(`Failed to update trip offer.\n${errorText}`);
+                showToast(data.error || "Failed to update trip offer.");
             }
         } catch (err) {
             console.error("Error updating trip", err);
@@ -1854,24 +1634,20 @@ function setupEditModalListeners() {
         const end = document.getElementById("edit-ride-window-end").value;
 
         try {
-            const res = await fetch(`/api/rides/${rideId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    passenger: { id: currentUser.id },
-                    origin,
-                    destination,
-                    pickupTimeWindowStart: new Date(start).toISOString(),
-                    pickupTimeWindowEnd: new Date(end).toISOString()
-                })
-            });
+            const { ok, data } = await apiSend(`/api/rides/${rideId}?actorId=${currentUser.id}`, {
+                passenger: { id: currentUser.id },
+                origin,
+                destination,
+                pickupTimeWindowStart: new Date(start).toISOString(),
+                pickupTimeWindowEnd: new Date(end).toISOString()
+            }, "PUT");
 
-            if (res.ok) {
+            if (ok) {
                 document.getElementById("edit-ride-modal").style.display = "none";
                 logConsole(`[Database] Updated Ride Request ID: ${rideId}`, "text-indigo");
                 await loadAllData();
             } else {
-                showToast("Failed to update ride request.");
+                showToast(data.error || "Failed to update ride request.");
             }
         } catch (err) {
             console.error("Error updating ride request", err);
@@ -1906,11 +1682,9 @@ function setupProfileListeners() {
             if (!confirmed) return;
 
             try {
-                const res = await fetch(`/api/users/${currentUser.id}`, {
-                    method: "DELETE"
-                });
+                const { ok } = await apiSend(`/api/users/${currentUser.id}?actorId=${currentUser.id}`, undefined, "DELETE");
 
-                if (res.ok) {
+                if (ok) {
                     showToast("Your account has been deleted successfully.");
                     localStorage.removeItem("routeshare_user");
                     showAuthScreens();
@@ -1940,25 +1714,20 @@ function setupProfileListeners() {
             }
 
             try {
-                const userRes = await fetch(`/api/users/${currentUser.id}`);
-                if (!userRes.ok) throw new Error("Failed to fetch user details to update.");
-                const userDetails = await userRes.json();
+                const current = await apiGet(`/api/users/${currentUser.id}`);
+                if (!current.ok) throw new Error("Failed to fetch user details to update.");
+                const userDetails = current.data;
 
                 userDetails.name = name;
                 userDetails.password = password;
 
-                const res = await fetch(`/api/users/${currentUser.id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(userDetails)
-                });
+                const { ok, data: updatedUser } = await apiSend(
+                    `/api/users/${currentUser.id}?actorId=${currentUser.id}`, userDetails, "PUT");
 
-                if (!res.ok) {
-                    showToast("Failed to update profile settings.");
+                if (!ok) {
+                    showToast(updatedUser.error || "Failed to update profile settings.");
                     return;
                 }
-
-                const updatedUser = await res.json();
 
                 if (currentUser.role === "DRIVER") {
                     const vehicleId = document.getElementById("profile-vehicle-id").value;
@@ -1978,13 +1747,8 @@ function setupProfileListeners() {
                         capacity: capacity
                     };
 
-                    const vRes = await fetch(`/api/vehicles/${vehicleId}`, {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(vehiclePayload)
-                    });
-
-                    if (!vRes.ok) {
+                    const vehicleRes = await apiSend(`/api/vehicles/${vehicleId}?actorId=${currentUser.id}`, vehiclePayload, "PUT");
+                    if (!vehicleRes.ok) {
                         showToast("User details updated, but failed to update vehicle details.");
                         return;
                     }
@@ -2018,18 +1782,8 @@ async function openProfileDashboard() {
 
     if (!currentUser) return;
     try {
-        const res = await fetch(`/api/users/${currentUser.id}`);
-        if (!res.ok) throw new Error("Failed to fetch profile details");
-        const userDetails = await res.json();
-        
-        
-        
-        
-        
-        
-        
-        
-        
+        const { ok, data: userDetails } = await apiGet(`/api/users/${currentUser.id}`);
+        if (!ok) throw new Error("Failed to fetch profile details");
         document.getElementById("profile-username").value = userDetails.name;
         document.getElementById("profile-password").value = ""; // hashes are never sent by the API
         document.getElementById("profile-role").value = userDetails.role;
@@ -2048,9 +1802,9 @@ async function openProfileDashboard() {
         const vehicleSection = document.getElementById("profile-vehicle-section");
         if (userDetails.role === "DRIVER") {
             vehicleSection.style.display = "block";
-            const vRes = await fetch(`/api/vehicles/driver/${currentUser.id}`);
+            const vRes = await apiGet(`/api/vehicles/driver/${currentUser.id}`);
             if (vRes.ok) {
-                const vehiclesList = await vRes.json();
+                const vehiclesList = vRes.data;
                 if (vehiclesList.length > 0) {
                     const vehicle = vehiclesList[0];
                     document.getElementById("profile-vehicle-id").value = vehicle.id;
@@ -2078,17 +1832,12 @@ async function openProfileDashboard() {
 async function offerRideForRequest(origin, destination, requestId, passengerId, windowStart, windowEnd) {
     if (currentUser && currentUser.role === 'DRIVER' && requestId && passengerId) {
         try {
-            const response = await fetch('/api/trips/check-existing-matches', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    driverId: currentUser.id.toString(),
-                    rideRequestId: requestId.toString()
-                })
+            const { ok, data: matches } = await apiSend('/api/trips/check-existing-matches', {
+                driverId: currentUser.id.toString(),
+                rideRequestId: requestId.toString()
             });
-            
-            if (response.ok) {
-                const matches = await response.json();
+
+            if (ok) {
                 if (matches && matches.length > 0) {
                     let msg = `Good news! You have ${matches.length} existing trip(s) that can accommodate this passenger.\n\n`;
                     matches.forEach((m, idx) => {
@@ -2116,20 +1865,15 @@ async function offerRideForRequest(origin, destination, requestId, passengerId, 
 
 async function bindPassengerToExistingTrip(tripOfferId, origin, destination, passengerId, windowStart, windowEnd) {
     try {
-        const res = await fetch(`/api/trips/${tripOfferId}/book-passenger`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                passengerId: passengerId.toString(),
-                origin: origin,
-                destination: destination,
-                pickupTimeWindowStart: windowStart,
-                pickupTimeWindowEnd: windowEnd
-            })
+        const { ok, data } = await apiSend(`/api/trips/${tripOfferId}/book-passenger`, {
+            passengerId: passengerId.toString(),
+            origin: origin,
+            destination: destination,
+            pickupTimeWindowStart: windowStart,
+            pickupTimeWindowEnd: windowEnd
         });
-        
-        if (res.ok) {
-            const data = await res.json();
+
+        if (ok) {
             if (data.bookingStatus === 'FAILED_ROUTING') {
                 showToast("Could not route the passenger on this trip.");
             } else {
@@ -2139,8 +1883,7 @@ async function bindPassengerToExistingTrip(tripOfferId, origin, destination, pas
                 navigateTo('view-my-trips');
             }
         } else {
-            const text = await res.text();
-            showToast("Error binding passenger: " + text);
+            showToast("Error binding passenger: " + (data.error || "unknown error"));
         }
     } catch (e) {
         console.error("Error linking trip:", e);
@@ -2172,9 +1915,9 @@ function stopNotificationPolling() {
 async function loadNotifications() {
     if (!currentUser) return;
     try {
-        const res = await fetch(`/api/notifications/user/${currentUser.id}`);
-        if (!res.ok) return;
-        cachedNotifications = await res.json();
+        const { ok, data } = await apiGet(`/api/notifications/user/${currentUser.id}`);
+        if (!ok) return;
+        cachedNotifications = data;
         renderNotificationBadge();
         renderNotificationPanel();
     } catch (e) {
@@ -2198,8 +1941,8 @@ function renderNotificationPanel() {
         return;
     }
     list.innerHTML = cachedNotifications.map(n => `
-        <div class="notif-item ${n.read ? '' : 'unread'}" onclick="openNotification(${n.id}, '${n.type}')" title="Open related view">
-            ${n.type === 'RATING' ? '⭐' : n.type === 'BOOKING' ? '🚗' : 'ℹ️'} ${n.message}
+        <div class="notif-item ${n.read ? '' : 'unread'}" onclick="openNotification(${n.id}, '${esc(n.type)}')" title="Open related view">
+            ${n.type === 'RATING' ? '⭐' : n.type === 'BOOKING' ? '🚗' : 'ℹ️'} ${esc(n.message)}
             <span class="notif-time">${relativeTime(n.createdAt)}</span>
         </div>
     `).join("");
@@ -2214,7 +1957,7 @@ function toggleNotificationPanel() {
 
 async function markNotifRead(id) {
     try {
-        await fetch(`/api/notifications/${id}/mark-read`, { method: "POST" });
+        await apiSend(`/api/notifications/${id}/mark-read`);
         await loadNotifications();
     } catch (e) {
         console.error("Failed to mark notification read:", e);
@@ -2224,7 +1967,7 @@ async function markNotifRead(id) {
 async function markAllNotifsRead() {
     if (!currentUser) return;
     try {
-        await fetch(`/api/notifications/user/${currentUser.id}/mark-all-read`, { method: "POST" });
+        await apiSend(`/api/notifications/user/${currentUser.id}/mark-all-read`);
         await loadNotifications();
         logConsole("[Notifications] All notifications marked as read.", "text-muted");
     } catch (e) {
@@ -2246,9 +1989,9 @@ async function bookingTransition(rideId, action) {
     if (bookingActionInFlight) return;
     bookingActionInFlight = true;
     try {
-        const res = await fetch(`/api/bookings/${rideId}/${action}?actorId=${currentUser ? currentUser.id : ""}`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok) {
+        const { ok, data } = await apiSend(
+            `/api/bookings/${rideId}/${action}?actorId=${currentUser ? currentUser.id : ""}`);
+        if (ok) {
             showToast(`Booking #${rideId} ${data.status.toLowerCase()}.`, "success");
             logConsole(`[Booking] Request #${rideId} → ${data.status}`, "text-success");
             await loadAllData();
@@ -2266,9 +2009,9 @@ async function bookingTransition(rideId, action) {
 async function completeTripLifecycle(tripId) {
     if (!(await showConfirm("Mark this trip as completed? All confirmed passengers will be notified to rate you.", "Complete Trip"))) return;
     try {
-        const res = await fetch(`/api/bookings/trip/${tripId}/complete?actorId=${currentUser ? currentUser.id : ""}`, { method: "POST" });
-        const data = await res.json();
-        if (res.ok) {
+        const { ok, data } = await apiSend(
+            `/api/bookings/trip/${tripId}/complete?actorId=${currentUser ? currentUser.id : ""}`);
+        if (ok) {
             logConsole(`[Booking] Trip #${tripId} completed — ${data.completedBookings} booking(s) closed.`, "text-success");
             showToast(`Trip completed! ${data.completedBookings} passenger booking(s) closed.`);
             await loadAllData();
@@ -2408,13 +2151,13 @@ async function loadDriverPolicies() {
     if (!currentUser) return;
     wirePolicyForms();
     try {
-        const [tRes, pRes] = await Promise.all([
-            fetch(`/api/policies/travel/${currentUser.id}`),
-            fetch(`/api/policies/pricing/${currentUser.id}`)
+        const [travel, pricing] = await Promise.all([
+            apiGet(`/api/policies/travel/${currentUser.id}`),
+            apiGet(`/api/policies/pricing/${currentUser.id}`)
         ]);
-        renderRuleList("travel-rules-list", tRes.ok ? await tRes.json() : [],
+        renderRuleList("travel-rules-list", travel.ok ? travel.data : [],
             TRAVEL_RULE_LABELS, "travel", "No travel rules yet — everyone with a feasible route may book.");
-        renderRuleList("pricing-rules-list", pRes.ok ? await pRes.json() : [],
+        renderRuleList("pricing-rules-list", pricing.ok ? pricing.data : [],
             PRICING_RULE_LABELS, "pricing", "No pricing rules yet — platform default pricing applies.");
     } catch (e) {
         console.error("Failed to load driver policies:", e);
@@ -2433,7 +2176,7 @@ function renderRuleList(containerId, rules, labels, kind, emptyText) {
         const label = (labels[r.type] || (() => r.type))(value);
         return `
         <div class="rule-row">
-            <div class="rule-desc"><span class="rule-chip">${kind === "travel" ? "RULE" : "PRICE"}</span> ${label}</div>
+            <div class="rule-desc"><span class="rule-chip">${kind === "travel" ? "RULE" : "PRICE"}</span> ${esc(label)}</div>
             <button class="btn btn-sm btn-danger" onclick="deletePolicyRule('${kind}', ${r.id})">Remove</button>
         </div>`;
     }).join("");
@@ -2441,12 +2184,11 @@ function renderRuleList(containerId, rules, labels, kind, emptyText) {
 
 async function deletePolicyRule(kind, ruleId) {
     try {
-        const res = await fetch(`/api/policies/${kind}/rule/${ruleId}`, { method: "DELETE" });
-        if (res.ok) {
+        const { ok, data } = await apiSend(`/api/policies/${kind}/rule/${ruleId}?actorId=${currentUser.id}`, undefined, "DELETE");
+        if (ok) {
             showToast("Rule removed.", "success");
             await loadDriverPolicies();
         } else {
-            const data = await res.json();
             showToast(data.error || "Could not remove rule.");
         }
     } catch (e) {
@@ -2475,13 +2217,8 @@ function wirePolicyForms() {
         if (!currentUser) return;
         const payload = { type: typeSel.value, numericValue: valInput.value || "" };
         try {
-            const res = await fetch(`/api/policies/travel/${currentUser.id}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (res.ok) {
+            const { ok, data } = await apiSend(`/api/policies/travel/${currentUser.id}?actorId=${currentUser.id}`, payload);
+            if (ok) {
                 showToast("Travel rule added — it now guards all your trips.", "success");
                 valInput.value = "";
                 await loadDriverPolicies();
@@ -2502,13 +2239,8 @@ function wirePolicyForms() {
             value: document.getElementById("pricing-rule-value").value
         };
         try {
-            const res = await fetch(`/api/policies/pricing/${currentUser.id}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (res.ok) {
+            const { ok, data } = await apiSend(`/api/policies/pricing/${currentUser.id}?actorId=${currentUser.id}`, payload);
+            if (ok) {
                 showToast("Pricing rule added — your fares now follow your own policy.", "success");
                 document.getElementById("pricing-rule-value").value = "";
                 await loadDriverPolicies();
@@ -2544,7 +2276,7 @@ function refreshLocationSuggestions() {
     (trips || []).forEach(t => { seen.add(t.origin); seen.add(t.destination); });
     (rides || []).forEach(r => { seen.add(r.origin); seen.add(r.destination); });
     dl.innerHTML = [...seen].filter(Boolean).sort()
-        .map(p => `<option value="${p}"></option>`).join("");
+        .map(p => `<option value="${esc(p)}"></option>`).join("");
 }
 
 function attachAutocomplete() {
@@ -2559,7 +2291,14 @@ function swapInputs(aId, bId) {
     const tmp = a.value; a.value = b.value; b.value = tmp;
 }
 
-function toLocalInputValue(d) {
+/**
+ * Formats a Date or an ISO string for an <input type="datetime-local"> value,
+ * in the browser's own timezone. Accepts both so callers never convert first.
+ */
+function toLocalInputValue(value) {
+    if (!value) return "";
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return "";
     const p = n => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
@@ -2585,8 +2324,8 @@ function applyGreeting() {
 async function loadMyPayments() {
     if (!currentUser) { myPayments = []; return; }
     try {
-        const res = await fetch(`/api/payments/user/${currentUser.id}`);
-        myPayments = res.ok ? await res.json() : [];
+        const { ok, data } = await apiGet(`/api/payments/user/${currentUser.id}`);
+        myPayments = ok ? data : [];
     } catch (e) { myPayments = []; }
 }
 
@@ -2637,10 +2376,10 @@ function renderReputationCard(userDetails) {
 
     card.innerHTML = `
         <div class="rep-head">
-            <div class="session-avatar" style="width:46px;height:46px;font-size:1.2rem;">${(userDetails.name||"?").charAt(0).toUpperCase()}</div>
+            <div class="session-avatar" style="width:46px;height:46px;font-size:1.2rem;">${esc((userDetails.name||"?").charAt(0).toUpperCase())}</div>
             <div>
-                <div class="rep-score">⭐ ${Number(score).toFixed(2)} <span class="badge badge-tier-${getTierClass(tier)}">${tier}</span></div>
-                <div class="rep-sub">${greeting()}, ${userDetails.name} — your reputation ${prog.next ? "is climbing" : "is at the top tier"}.</div>
+                <div class="rep-score">⭐ ${Number(score).toFixed(2)} <span class="badge badge-tier-${getTierClass(tier)}">${esc(tier)}</span></div>
+                <div class="rep-sub">${greeting()}, ${esc(userDetails.name)} — your reputation ${prog.next ? "is climbing" : "is at the top tier"}.</div>
             </div>
         </div>
         <div class="rep-progress"><div style="width:${prog.pct}%"></div></div>
@@ -2649,15 +2388,45 @@ function renderReputationCard(userDetails) {
 }
 
 /* ── Driver cockpit: trip status + live route ── */
+/**
+ * Turns the planner's internal stop labels ("PICKUP(name) at Loc") into
+ * passenger-friendly wording, highlighting only the rider's own stops.
+ */
+function friendlyStopLabel(stop) {
+    if (!stop) return { icon: "•", text: "", mine: false };
+    switch (stop.kind) {
+        case "ORIGIN":
+            return { icon: "○", text: `Trip starts — ${stop.location}`, mine: false };
+        case "DESTINATION":
+            return { icon: "◉", text: `Trip ends — ${stop.location}`, mine: false };
+        case "PICKUP":
+        case "DROPOFF": {
+            const mine = !!(currentUser && stop.passengerName === currentUser.name);
+            const verb = stop.kind === "PICKUP" ? "pickup" : "drop-off";
+            return {
+                icon: stop.kind === "PICKUP" ? "▲" : "▼",
+                text: `${mine ? "Your" : "Co-rider"} ${verb} — ${stop.location}`,
+                mine
+            };
+        }
+        default:
+            return { icon: "•", text: stop.label || "", mine: false };
+    }
+}
+
 function tripStatus(t) {
     const now = new Date();
     const dep = new Date(t.departureTime);
     const pax = t.passengers || [];
     const active = pax.filter(p => p.status === "PENDING" || p.status === "CONFIRMED");
     const pending = pax.filter(p => p.status === "PENDING").length;
+    // Completed bookings settle the status regardless of the scheduled departure
+    // (a driver may complete early; history must read as history).
+    if (active.length === 0 && pax.some(p => p.status === "COMPLETED")) {
+        return ["Completed", "trip-Completed"];
+    }
     if (dep < now) {
-        return active.length === 0 && pax.some(p => p.status === "COMPLETED")
-            ? ["Completed", "trip-Completed"] : ["Departed", "trip-Departed"];
+        return ["Departed", "trip-Departed"];
     }
     return pending > 0 ? ["Action needed", "trip-ActionNeeded"] : ["Scheduled", "trip-Scheduled"];
 }
@@ -2670,22 +2439,22 @@ async function toggleTripRoute(tripId, btn) {
 
     setBtnLoading(btn, true);
     try {
-        const res = await fetch(`/api/trips/${tripId}/route`);
-        const data = await res.json();
+        const { ok, data } = await apiGet(`/api/trips/${tripId}/route`);
         setBtnLoading(btn, false);
-        if (!res.ok) { showToast(data.error || "Could not compute the route."); return; }
+        if (!ok) { showToast(data.error || "Could not compute the route."); return; }
 
         const r = data.routing || {};
         panel = document.createElement("div");
         panel.className = "trip-route-panel";
         panel.innerHTML = `
             <div class="result-metrics">
-                <div class="metric-item"><span class="metric-label">Total</span><span class="metric-value">${r.totalTimeMinutes ?? "–"} min</span></div>
+                <div class="metric-item"><span class="metric-label">Total</span><span class="metric-value">${r.totalTimeMinutes == null ? "–" : formatDuration(r.totalTimeMinutes)}</span></div>
                 <div class="metric-item"><span class="metric-label">Distance</span><span class="metric-value">${(r.totalDistanceKm ?? 0).toFixed ? r.totalDistanceKm.toFixed(1) : r.totalDistanceKm} km</span></div>
-                <div class="metric-item"><span class="metric-label">Detour</span><span class="metric-value">+${data.detourMinutes ?? 0} min</span></div>
+                <div class="metric-item"><span class="metric-label">Detour</span><span class="metric-value">+${formatDuration(data.detourMinutes ?? 0)}</span></div>
                 <div class="metric-item"><span class="metric-label">Stops</span><span class="metric-value">${Math.max(0, (data.waypoints || []).length - 2)}</span></div>
             </div>
-            <div class="route-stops">${(r.sequence || []).map(s => `<div>${s}</div>`).join("")}</div>
+            <div class="route-stops">${(r.stops || []).map(stop => `<div>${esc(stop.label)}</div>`).join("")}</div>
+            ${r.searchStats ? `<div class="algo-insight">🔎 DFS re-plan: ${r.searchStats.nodesExplored} nodes explored · ${r.searchStats.prunedTotal} pruned (ordering ${r.searchStats.prunedByConstraint?.C1_ordering ?? 0}, capacity ${r.searchStats.prunedByConstraint?.C2_capacity ?? 0}, stop limit ${r.searchStats.prunedByConstraint?.C3_stopLimit ?? 0}, time window ${r.searchStats.prunedByConstraint?.C4_timeWindow ?? 0}, detour bound ${r.searchStats.prunedByConstraint?.C5_detourBound ?? 0})</div>` : ""}
             <div class="trip-route-map" style="display:none;"></div>`;
         card.appendChild(panel);
         btn.textContent = "▲ Hide route";

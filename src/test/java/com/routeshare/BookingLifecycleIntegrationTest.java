@@ -324,4 +324,34 @@ public class BookingLifecycleIntegrationTest {
         List<Map<String, Object>> counterparts = res.getBody();
         assertThat(counterparts).extracting(u -> u.get("id")).contains(passengerId);
     }
+
+    @Test
+    @Order(22)
+    public void completeTrip_afterPickupWindowElapsed_succeeds() {
+        // Regression for a demo-found defect: completing a trip failed with
+        // "could not commit JPA transaction" because @FutureOrPresent on the booking's
+        // pickup window was re-validated at flush when the (historical) booking was
+        // dirtied by the status transition. Temporal rules now apply only at creation,
+        // so lifecycle transitions on elapsed bookings must succeed.
+        User driver = userRepository.save(
+                new User("WindowElapsedDriver", com.routeshare.model.enums.UserRole.DRIVER));
+        User pax = userRepository.save(
+                new User("WindowElapsedPax", com.routeshare.model.enums.UserRole.PASSENGER));
+        TripOffer trip = tripOfferRepository.save(
+                new TripOffer(driver, "Milazzo", "Patti", LocalDateTime.now().plusHours(1), 2, 30));
+
+        RideRequest booking = new RideRequest(pax, "Milazzo", "Patti",
+                LocalDateTime.now().minusHours(13), LocalDateTime.now().minusHours(1)); // window fully elapsed
+        booking.setTripOffer(trip);
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking = rideRequestRepository.save(booking); // must not trip flush-time validation
+
+        ResponseEntity<Map> res = restTemplate.postForEntity(
+                "/api/bookings/trip/" + trip.getId() + "/complete?actorId=" + driver.getId(), null, Map.class);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Number) res.getBody().get("completedBookings")).intValue()).isEqualTo(1);
+        assertThat(rideRequestRepository.findById(booking.getId()).orElseThrow().getStatus())
+                .isEqualTo(BookingStatus.COMPLETED);
+    }
 }
