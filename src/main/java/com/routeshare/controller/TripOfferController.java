@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  * TripOfferController exposes CRUD over driver trip offers (FR-5). Updates that would
  * break the routing of already-booked passengers are rejected (re-planned via the DFS).
  *
- * Note: recovered from bytecode after a disk failure (see docs/RECOVERY_NOTES.md).
+ * Note: recovered from bytecode after a disk failure.
  */
 @RestController
 @RequestMapping("/api/trips")

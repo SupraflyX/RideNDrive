@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
  *   logic behind the MappingService interface; the API key is env-injected and only ever
  *   logged masked.
  *
- * Note: recovered from bytecode after a disk failure (see docs/RECOVERY_NOTES.md).
+ * Note: recovered from bytecode after a disk failure.
  */
 @Service
 @Primary

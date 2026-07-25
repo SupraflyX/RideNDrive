@@ -47,7 +47,7 @@ import org.springframework.web.bind.annotation.RestController;
  * TripPlanningController orchestrates the end-to-end carpool workflow connecting database entities,
  * routing services, driver policies, pricing strategy chains, and payment processing.
  *
- * Note: recovered from bytecode after a disk failure (see docs/RECOVERY_NOTES.md); the behaviour is the
+ * Note: recovered from bytecode after a disk failure; the behaviour is the
  * compiled Sprint 9 behaviour, since re-expressed in idiomatic Java.
  */
 @RestController

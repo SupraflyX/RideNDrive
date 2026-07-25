@@ -44,3 +44,10 @@ New Text Document.txt
 
 # Local H2 lock file (transient, created while the app runs)
 data/*.lock.db
+
+# Personal working notes — kept locally, not part of the deliverable
+docs/SESSION_CONTEXT.md
+docs/ORAL_EXAM_PREP.md
+docs/DEMO_GUIDE.md
+docs/REBUTTAL_EMAIL.md
+docs/RECOVERY_NOTES.md
