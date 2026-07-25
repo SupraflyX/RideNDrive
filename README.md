@@ -130,7 +130,7 @@ The project includes 15 comprehensive UML diagrams covering:
 - Service Layer Diagram
 - Layered Architecture Diagram
 
-Diagram source files are located in `diagram_svgs/` and `diagram_pdfs/`.
+Diagram sources and the full report are maintained alongside the project submission.
 
 ---
 
@@ -150,12 +150,6 @@ RideNDrive/
 │   │   └── resources/
 │   │       └── static/        # Frontend (HTML/CSS/JS)
 │   └── test/                  # JUnit test suite
-├── diagram_svgs/              # UML diagrams (SVG)
-├── diagram_pdfs/              # UML diagrams (PDF)
-├── report_artifacts/          # Generated diagrams & sprint charts
-├── data/                      # Sample data (local H2 profile)
-├── docs/                      # Report deliverables & working notes
-├── REPORT.md                  # Full project report (Markdown source)
 ├── pom.xml                    # Maven dependencies
 └── README.md
 ```

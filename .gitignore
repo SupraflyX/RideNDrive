@@ -51,3 +51,11 @@ docs/ORAL_EXAM_PREP.md
 docs/DEMO_GUIDE.md
 docs/REBUTTAL_EMAIL.md
 docs/RECOVERY_NOTES.md
+
+# Report deliverables and diagram sources — kept locally, submitted separately
+report_artifacts/
+diagram_pdfs/
+diagram_svgs/
+docs/
+REPORT.md
+data/
