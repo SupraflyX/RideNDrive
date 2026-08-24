@@ -16,13 +16,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-/**
- * ReputationServiceTest validates the 5-step reputation and incentive tier logic.
- *
- * Demonstrates:
- * - V&V / Quality Correctness (Ch. 2): Confirms that rating events trigger rolling updates and tier progressions.
- * - Temporal Mocking: Checks time-decay behavior for users who are inactive for >30 days.
- */
+// checks the reputation maths: the rolling average, the tier boundaries, and the
+// decay that kicks in after 30 days of inactivity
 public class ReputationServiceTest {
 
     private UserRepository userRepository;
@@ -52,13 +47,14 @@ public class ReputationServiceTest {
     public void testRollingAverageCalculation() {
         when(userRepository.findById(2L)).thenReturn(Optional.of(testUser));
 
-        // Existing ratings in DB: score 4 and score 5
+        // the rating is saved before handleNewRating runs, so the repository returns it too.
+        // mocking only the older two is what let the double-counting bug slip through
         Rating r1 = new Rating(reviewer, testUser, 4, "DRIVER_RATED");
         Rating r2 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
-        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, r2));
+        Rating justSaved = new Rating(reviewer, testUser, 3, "DRIVER_RATED");
+        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, r2, justSaved));
 
-        // Submit new rating of score 3
-        // Recalculation: (4 + 5 + 3) / 3 = 4.0
+        // (4 + 5 + 3) / 3 = 4.0
         reputationService.handleNewRating(2L, 3);
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
@@ -77,7 +73,8 @@ public class ReputationServiceTest {
         // Average: 5.0. This should map to PREMIUM_PRICING since score >= 4.8.
         Rating r1 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
         Rating r2 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
-        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, r2));
+        Rating justSaved = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
+        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, r2, justSaved));
 
         reputationService.handleNewRating(2L, 5);
 
@@ -95,7 +92,8 @@ public class ReputationServiceTest {
 
         // Bob has bad ratings. Gets a new rating of 1.
         Rating r1 = new Rating(reviewer, testUser, 2, "DRIVER_RATED");
-        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1));
+        Rating justSaved = new Rating(reviewer, testUser, 1, "DRIVER_RATED");
+        when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, justSaved));
 
         reputationService.handleNewRating(2L, 1);
 
