@@ -78,8 +78,6 @@ function navigateTo(sectionId) {
         link.classList.remove('active');
         if (link.dataset.target === sectionId) {
             link.classList.add('active');
-            // Update header title
-            document.getElementById('current-view-title').textContent = link.textContent.replace(/[\u1000-\uFFFF]+/, '').trim();
         }
     });
 }
@@ -189,7 +187,9 @@ function showAuthScreens() {
     document.body.className = "";
     const authContainer = document.getElementById("auth-container");
     const appWrapper = document.getElementById("app-wrapper");
-    if (authContainer) authContainer.style.display = "flex";
+    // block, not flex: .auth-split is a full-width grid, and making its parent a flex
+    // container shrinks it to content width and pushes the form off to the left
+    if (authContainer) authContainer.style.display = "block";
     if (appWrapper) appWrapper.style.display = "none";
     
     const loginScreen = document.getElementById("auth-login-screen");
@@ -200,7 +200,7 @@ function showAuthScreens() {
     if (loginScreen) loginScreen.style.display = "block";
     if (passengerRegisterScreen) passengerRegisterScreen.style.display = "none";
     if (driverRegisterScreen) driverRegisterScreen.style.display = "none";
-    if (authTitleText) authTitleText.innerText = "Sign In to DriveNRide";
+    if (authTitleText) authTitleText.innerText = "Sign in to RideNDrive";
 
     // Clear inputs
     const loginName = document.getElementById("login-name");
@@ -231,7 +231,7 @@ function updateSessionDisplay() {
     // Update header profile card
     document.getElementById("session-avatar").innerText = currentUser.name.charAt(0).toUpperCase();
     document.getElementById("session-username").innerHTML = `<strong>${esc(currentUser.name)}</strong>`;
-    document.getElementById("session-role-tier").innerText = `${currentUser.role} / ${currentUser.incentiveTier || 'STANDARD'}`;
+    document.getElementById("session-role-tier").innerText = `${roleLabel(currentUser.role)} · ${tierLabel(currentUser.incentiveTier)}`;
 
     // Update form readonly text inputs
     const driverText = currentUser.name;
@@ -279,7 +279,7 @@ function setupAuthListeners() {
             loginScreen.style.display = "block";
             passengerRegisterScreen.style.display = "none";
             driverRegisterScreen.style.display = "none";
-            authTitleText.innerText = "Sign In to DriveNRide";
+            authTitleText.innerText = "Sign in to RideNDrive";
         });
     });
 
@@ -369,7 +369,7 @@ function setupAuthListeners() {
                 // Back to login
                 loginScreen.style.display = "block";
                 passengerRegisterScreen.style.display = "none";
-                authTitleText.innerText = "Sign In to DriveNRide";
+                authTitleText.innerText = "Sign in to RideNDrive";
             } else {
                 const painted = applyFieldErrors(e.target, data.fieldErrors,
                     { name: "register-p-name", password: "register-p-password" });
@@ -406,7 +406,7 @@ function setupAuthListeners() {
                 // Back to login
                 loginScreen.style.display = "block";
                 driverRegisterScreen.style.display = "none";
-                authTitleText.innerText = "Sign In to DriveNRide";
+                authTitleText.innerText = "Sign in to RideNDrive";
             } else {
                 const painted = applyFieldErrors(e.target, data.fieldErrors, {
                     name: "register-d-name", password: "register-d-password",
@@ -704,11 +704,11 @@ function renderPassengerRidesTable() {
                 <div>
                     <div class="ride-route">${esc(r.origin)} <span class="route-arrow">→</span> ${esc(r.destination)} ${bookingStatusBadge(status)}</div>
                     <div class="ride-meta">
-                        <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                        <span>🕑 pickup ${formatWindow(r.pickupTimeWindowStart, r.pickupTimeWindowEnd)}</span>
                         ${r.luggageSize && r.luggageSize !== "NONE" ? `<span class="luggage-chip">🧳 ${esc(r.luggageSize.toLowerCase())} luggage</span>` : ""}
                     </div>
                     ${(() => { const pay = paymentForRequest(r.id); return pay
-                        ? `<div class="pay-line ${pay.status === "HELD" ? "held" : ""}">${pay.status === "HELD" ? "⏳ Payment on hold" : "✔ Paid " + fmtEUR(pay.amount)} · ${esc(pay.reference)}</div>`
+                        ? `<div class="pay-line ${pay.status === "HELD" ? "held" : ""}">${pay.status === "HELD" ? "⏳ Payment on hold" : "✔ Paid " + fmtEUR(pay.amount)}</div>`
                         : ""; })()}
                 </div>
                 <div class="ride-card-actions">${actions}</div>
@@ -741,7 +741,7 @@ function renderPassengersTable() {
             <td>${u.id}</td>
             <td><strong>${esc(u.name)}</strong></td>
             <td>⭐ ${u.reputationScore.toFixed(2)}</td>
-            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(u.incentiveTier)}</span></td>
+            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(tierLabel(u.incentiveTier))}</span></td>
         `;
         tbody.appendChild(tr);
     });
@@ -762,7 +762,7 @@ function renderDriversTable() {
             <td>${u.id}</td>
             <td><strong>${esc(u.name)}</strong></td>
             <td>⭐ ${u.reputationScore.toFixed(2)}</td>
-            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(u.incentiveTier)}</span></td>
+            <td><span class="badge badge-tier-${getTierClass(u.incentiveTier)}">${esc(tierLabel(u.incentiveTier))}</span></td>
             <td>${vehicle ? `${esc(vehicle.make)} ${esc(vehicle.model)}` : "No Vehicle"}</td>
             <td>👤 ${vehicle ? vehicle.capacity : 0} seats</td>
         `;
@@ -815,7 +815,7 @@ async function renderRidesTable() {
                         ${esc(pName)} needs: ${esc(r.origin)} <span class="route-arrow">→</span> ${esc(r.destination)} ${scoreHtml}
                     </div>
                     <div class="ride-meta">
-                        <span>🕑 pickup ${formatDateTime(r.pickupTimeWindowStart)} – ${formatDateTime(r.pickupTimeWindowEnd)}</span>
+                        <span>🕑 pickup ${formatWindow(r.pickupTimeWindowStart, r.pickupTimeWindowEnd)}</span>
                         <span>${r.luggageSize && r.luggageSize !== "NONE" ? `🧳 ${esc(r.luggageSize.toLowerCase())} luggage` : "🧳 no luggage"}${rep}</span>
                     </div>
                 </div>
@@ -981,22 +981,24 @@ function renderSearchResults(matches, searchPayload) {
     const mapEl = document.getElementById("map");
     if (mapEl) mapEl.style.display = "none"; 
 
-    let html = `
-        <div class="result-header">
-            <h3>Available Rides</h3>
-            <p style="font-size: 0.78rem; color: var(--text-secondary);">${matches.length} matches found</p>
-        </div>
-        <div class="matches-list" style="margin-top: 15px;">
-    `;
-
+    // the server already drops trips that have left, but keep the guard so a stale
+    // result set can never show a ride you cannot book
     const now = new Date();
     const futureMatches = matches.filter(m => new Date(m.departureTime) >= now);
 
     if (futureMatches.length === 0) {
-        html += `<div class="info-text">No available rides found for this future date.</div></div>`;
-        container.innerHTML = html;
+        container.innerHTML = `<div class="info-text">No rides on this date yet. Try another date, or post a request and let drivers come to you.</div>`;
         return;
     }
+
+    // count comes from the list actually rendered, so the two can never disagree
+    let html = `
+        <div class="result-header">
+            <h3>Available Rides</h3>
+            <p style="font-size: 0.78rem; color: var(--text-secondary);">${futureMatches.length} ride${futureMatches.length === 1 ? "" : "s"} · soonest first</p>
+        </div>
+        <div class="matches-list" style="margin-top: 15px;">
+    `;
 
     futureMatches.forEach((match, idx) => {
         const stops = (match.routing && match.routing.stops) || [];
@@ -1218,7 +1220,7 @@ function renderBookingConfirmation(data, trip, durationMs) {
                         <div>Base Fare:</div>
                         <div style="text-align: right;">${fmtEUR(p.pricing.baseFare)}</div>
                         <div>Reputation:</div>
-                        <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${esc(p.incentiveTier)})</div>
+                        <div style="text-align: right;">⭐ ${p.reputationScore.toFixed(2)} (${esc(tierLabel(p.incentiveTier))})</div>
                         <div>COTS Stripe:</div>
                         <div style="text-align: right; color: ${p.paymentCleared ? 'var(--accent-success)' : 'var(--accent-error)'}; font-weight: 600;">
                             ${p.paymentCleared ? 'Paid' : 'Hold'}
@@ -1264,6 +1266,15 @@ function logConsole(message, cssClass = "") {
 }
 
 // Utility formatting functions
+// the api speaks in enum constants (PREMIUM_PRICING, CANCELLED). nobody should have to
+// read those, so every place they reach the screen goes through one of these
+const TIER_LABELS = { STANDARD: "Standard", SILVER: "Silver", GOLD: "Gold", PREMIUM_PRICING: "Premium" };
+const STATUS_LABELS = { PENDING: "Awaiting driver", CONFIRMED: "Confirmed", REJECTED: "Declined",
+                        CANCELLED: "Cancelled", COMPLETED: "Completed" };
+function tierLabel(t) { return TIER_LABELS[t] || "Standard"; }
+function roleLabel(r) { return r === "DRIVER" ? "Driver" : "Passenger"; }
+function statusLabel(s) { return STATUS_LABELS[s] || s; }
+
 function getTierClass(tier) {
     if (tier === "PREMIUM_PRICING") return "premium";
     return tier.toLowerCase();
@@ -1287,6 +1298,18 @@ function formatDateTime(isoString) {
     if (!isoString) return "";
     const date = new Date(isoString);
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// a pickup window almost always starts and ends on the same day, so printing the date
+// twice just makes the line long. same day -> "25/08/2026 07:30 - 10:00"
+function formatWindow(startIso, endIso) {
+    if (!startIso || !endIso) return formatDateTime(startIso || endIso);
+    const a = new Date(startIso), b = new Date(endIso);
+    const time = d => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (a.toDateString() === b.toDateString()) {
+        return `${a.toLocaleDateString()} ${time(a)} – ${time(b)}`;
+    }
+    return `${formatDateTime(startIso)} – ${formatDateTime(endIso)}`;
 }
 
 // Google Maps rendering functions
@@ -1981,7 +2004,7 @@ async function markAllNotifsRead() {
    ═══════════════════════════════════════════════════════════════════ */
 function bookingStatusBadge(status) {
     const s = status || "PENDING";
-    return `<span class="status-badge status-${s}">${s}</span>`;
+    return `<span class="status-badge status-${s}">${statusLabel(s)}</span>`;
 }
 
 let bookingActionInFlight = false;
@@ -2156,7 +2179,7 @@ async function loadDriverPolicies() {
             apiGet(`/api/policies/pricing/${currentUser.id}`)
         ]);
         renderRuleList("travel-rules-list", travel.ok ? travel.data : [],
-            TRAVEL_RULE_LABELS, "travel", "No travel rules yet — everyone with a feasible route may book.");
+            TRAVEL_RULE_LABELS, "travel", "No rules yet — anyone whose route fits your trip can book.");
         renderRuleList("pricing-rules-list", pricing.ok ? pricing.data : [],
             PRICING_RULE_LABELS, "pricing", "No pricing rules yet — platform default pricing applies.");
     } catch (e) {
@@ -2257,7 +2280,15 @@ function wirePolicyForms() {
    REALNESS PASS — autocomplete, smart defaults, greeting, € format,
    payment visibility, reputation card & stats, driver route cockpit.
    ═══════════════════════════════════════════════════════════════════ */
-const SICILIAN_PLACES = ["Messina","Catania","Palermo","Taormina","Siracusa","Milazzo","Villafranca","Barcellona P.G.","Capo d'Orlando","Giardini Naxos","Acireale","Enna","Ragusa","Trapani","Cefalù","Messina Nord","Messina Sud","Catania Centro"];
+// major cities only. the old list had "Messina Nord", which is a motorway exit rather
+// than a place and google cannot geocode it at all, and a bare "Villafranca" which
+// resolved to a town in northern italy 2500km away. every name here was checked
+// against the maps api and comes back with a sensible distance.
+const PLACE_SUGGESTIONS = [
+    "Agrigento", "Bari", "Caltanissetta", "Catania", "Enna",
+    "Marsala", "Messina", "Naples", "Palermo", "Ragusa",
+    "Reggio Calabria", "Rome", "Salerno", "Siracusa", "Taormina", "Trapani"
+];
 let myPayments = [];
 
 function fmtEUR(x) {
@@ -2272,7 +2303,7 @@ function greeting() {
 function refreshLocationSuggestions() {
     const dl = document.getElementById("location-suggestions");
     if (!dl) return;
-    const seen = new Set(SICILIAN_PLACES);
+    const seen = new Set(PLACE_SUGGESTIONS);
     (trips || []).forEach(t => { seen.add(t.origin); seen.add(t.destination); });
     (rides || []).forEach(r => { seen.add(r.origin); seen.add(r.destination); });
     dl.innerHTML = [...seen].filter(Boolean).sort()
@@ -2363,27 +2394,26 @@ function renderReputationCard(userDetails) {
     const ridesDone = myRides.filter(r => r.status === "COMPLETED").length;
 
     const stats = isDriver ? [
-        [fmtEUR(earned), "earned"],
-        [myTrips.length, "trips published"],
-        [completedCarried, "passengers carried"],
-        [myPayments.filter(p => p.payee && p.payee.id === userDetails.id).length, "payments received"],
+        [fmtEUR(earned), "Total earned"],
+        [myTrips.length, "Trips posted"],
+        [completedCarried, "Passengers carried"],
+        [myPayments.filter(p => p.payee && p.payee.id === userDetails.id).length, "Payments received"],
     ] : [
-        [fmtEUR(spent), "spent on rides"],
-        [ridesDone, "rides completed"],
-        [myRides.length, "total requests"],
-        [tier === "GOLD" || tier === "PREMIUM_PRICING" ? "yes" : "not yet", "loyalty discounts"],
+        [fmtEUR(spent), "Total spent"],
+        [ridesDone, "Rides taken"],
+        [myRides.length, "Rides requested"],
+        [tier === "GOLD" || tier === "PREMIUM_PRICING" ? "Active" : "Not yet", "Loyalty discount"],
     ];
 
     card.innerHTML = `
         <div class="rep-head">
             <div class="session-avatar" style="width:46px;height:46px;font-size:1.2rem;">${esc((userDetails.name||"?").charAt(0).toUpperCase())}</div>
             <div>
-                <div class="rep-score">⭐ ${Number(score).toFixed(2)} <span class="badge badge-tier-${getTierClass(tier)}">${esc(tier)}</span></div>
-                <div class="rep-sub">${greeting()}, ${esc(userDetails.name)} — your reputation ${prog.next ? "is climbing" : "is at the top tier"}.</div>
+                <div class="rep-score">⭐ ${Number(score).toFixed(2)} <span class="badge badge-tier-${getTierClass(tier)}">${esc(tierLabel(tier))}</span></div>
             </div>
         </div>
         <div class="rep-progress"><div style="width:${prog.pct}%"></div></div>
-        <div class="rep-progress-label">${prog.next ? `${prog.missing} points to ${prog.next} — reputation buys ranking priority and fare discounts` : "PREMIUM: maximum priority in driver rankings"}</div>
+        <div class="rep-progress-label">${prog.next ? `${prog.missing} points to ${tierLabel(prog.next)} — reputation buys ranking priority and fare discounts` : "Premium — the top tier, and maximum priority in driver rankings"}</div>
         <div class="stats-grid">${stats.map(([v, l]) => `<div class="stat-box"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join("")}</div>`;
 }
 

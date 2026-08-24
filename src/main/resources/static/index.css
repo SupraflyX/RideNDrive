@@ -48,6 +48,10 @@
     --bg-panel: var(--bg-card);
     --bg-header: var(--bg-raised);
     --accent-primary: var(--accent);
+    --accent-success: var(--ok);
+    --accent-warning: var(--warn);
+    --accent-indigo: var(--accent);
+    --accent-error-bg: var(--danger-soft);
 }
 
 * { box-sizing: border-box; }
@@ -329,7 +333,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important
 .search-field-date { border-right: none; }
 .search-submit { align-self: stretch; }
 
-.results-area { min-height: 120px; }
+/* no min-height: the area is empty before a search and should take up no room */
+.results-area { }
 .welcome-box {
     text-align: center; padding: 46px 20px;
     color: var(--text-secondary);
