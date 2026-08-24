@@ -16,13 +16,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * StopPlanningServiceTest verifies the constrained DFS routing sequencing algorithm.
- *
- * Demonstrates:
- * - V&V / Quality Correctness (Ch. 2, Ch. 5): Proving functional requirements via automated tests.
- * - Equivalence Partitioning (Ch. 10): Testing boundaries of capacity, stops, time-windows, and detours.
- */
+// checks the stop planner: that it finds the shortest working order, and that each
+// of the five constraints actually rejects what it should
 public class StopPlanningServiceTest {
 
     private MappingService mappingService;
