@@ -8,14 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * ConfigController exposes non-secret runtime configuration to the SPA.
- *
- * The Google Maps browser key is injected via the GOOGLE_MAPS_API_KEY
- * environment variable (12-factor configuration management) instead of being
- * hardcoded in the frontend sources. When the key is absent the SPA falls
- * back to its built-in route visualization, so no functionality is lost.
- */
+// hands the browser the bits of config it needs. the maps key comes from an env
+// variable rather than being written into the frontend. without it the SPA just
+// draws its own simple route view instead
 @RestController
 @RequestMapping("/api/config")
 public class ConfigController {

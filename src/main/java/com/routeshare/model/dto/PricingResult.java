@@ -2,13 +2,6 @@ package com.routeshare.model.dto;
 
 import java.util.List;
 
-/**
- * PricingResult is a Data Transfer Object (DTO) containing output from the Pricing Engine rule evaluation.
- *
- * Demonstrates:
- * - Data Transfer Object Pattern: Returning a structured audit trail of pricing rule applications.
- * - Separation of Concerns: Decoupling the pricing calculation results from JPA entities.
- */
 public class PricingResult {
 
     private double baseFare;

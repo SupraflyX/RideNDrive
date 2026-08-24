@@ -1,28 +1,17 @@
 package com.routeshare.model.dto;
 
-/**
- * PlannedStop is one stop of a planned route, in structured form.
- *
- * The planner has always produced human-readable labels ("PICKUP(Alice) at Messina").
- * Every consumer — the passenger-metrics walk, the driver cockpit's waypoints, and
- * three separate places in the SPA — used to parse those labels back into data with
- * its own substring arithmetic. Carrying the structure alongside the label means the
- * label is formatted once, here, and never parsed again.
- *
- * Demonstrates:
- * - Data Transfer Object Pattern: the API speaks data, not display strings.
- * - Single Point of Definition (DRY): one formatter, zero parsers.
- */
+// one stop on a planned route.
+// the planner produces labels like "PICKUP(Alice) at Messina" and callers used to
+// pick those apart with substring maths. keeping the structured fields next to the
+// label means it gets formatted once here and never parsed again
 public class PlannedStop {
 
-    /** ORIGIN and DESTINATION are the driver's own endpoints; PICKUP/DROPOFF belong to a passenger. */
+    // ORIGIN and DESTINATION are the driver's own two ends, the others belong to a passenger
     public enum Kind { ORIGIN, PICKUP, DROPOFF, DESTINATION }
 
     private Kind kind;
     private String location;
-    /** Null for the driver's own ORIGIN and DESTINATION stops. */
-    private String passengerName;
-    /** The display label, kept so existing clients and tests read unchanged. */
+    private String passengerName; // null on the driver's own origin/destination
     private String label;
 
     public PlannedStop() {
@@ -35,7 +24,6 @@ public class PlannedStop {
         this.label = format(kind, location, passengerName);
     }
 
-    /** The one place a stop label is composed. */
     public static String format(Kind kind, String location, String passengerName) {
         return switch (kind) {
             case ORIGIN -> "Origin: " + location;

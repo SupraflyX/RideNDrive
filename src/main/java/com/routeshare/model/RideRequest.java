@@ -8,15 +8,7 @@ import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
 
-/**
- * RideRequest represents a request submitted by a passenger for a carpool match.
- *
- * Demonstrates:
- * - Domain Modeling: Formalizes passenger requirements as constraints for matching.
- * - Temporal Modeling: Specifying start and end bounds of a pickup time window.
- * - State Pattern (FR-12): the booking lifecycle is tracked by an explicit,
- *   guarded status field.
- */
+// a passenger's request for a ride, and the booking it becomes once a driver takes it
 @Entity
 @Table(name = "ride_requests")
 public class RideRequest {
@@ -43,15 +35,10 @@ public class RideRequest {
     @Column(nullable = false)
     private String destination;
 
-    /*
-     * Deliberately NOT annotated @FutureOrPresent: Hibernate re-validates dirty
-     * entities at every flush, so a temporal constraint on a lifecycle entity
-     * breaks legal status transitions once time passes (confirming or completing
-     * a booking after its window has elapsed failed the whole JPA commit — defect
-     * found during demo rehearsal). "Window must be in the future" is a rule about
-     * CREATING bookings, so it is enforced at the API boundary instead
-     * (TripPlanningController.bookPassenger, RideRequestController).
-     */
+    // no @FutureOrPresent here on purpose. hibernate re-validates dirty entities on every
+    // flush, so a time constraint on the entity breaks confirming or completing a booking
+    // once its window has passed - the whole commit fails. "must be in the future" is only
+    // a rule about creating a booking, so the controllers check it instead
     @NotNull(message = "Pickup time window start is required")
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowStart;
@@ -60,21 +47,13 @@ public class RideRequest {
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowEnd;
 
-    /**
-     * Lifecycle state of this booking. Transitions are guarded by
-     * BookingLifecycleService (State pattern) — see BookingStatus for the
-     * legal transition relation. The column default ensures rows created
-     * before this feature (schema migration via ddl-auto=update) are
-     * backfilled as PENDING instead of empty strings.
-     */
+    // BookingLifecycleService guards the transitions, BookingStatus lists what's legal.
+    // the column default is so rows created before this field existed read as PENDING
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(20) default 'PENDING'")
     private BookingStatus status = BookingStatus.PENDING;
 
-    /**
-     * Declared luggage size — evaluated by driver travel rules
-     * (NO_LARGE_LUGGAGE, FR-15) and used as a ranking tie-breaker.
-     */
+    // checked by the NO_LARGE_LUGGAGE rule, also a tie-breaker when ranking candidates
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(10) default 'NONE'")
     private LuggageSize luggageSize = LuggageSize.NONE;

@@ -9,41 +9,26 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-/**
- * RideRequestRepository provides DB operations for the RideRequest entity.
- *
- * Demonstrates:
- * - Repository Pattern: Separating passenger request persistence.
- * - Derived queries: rating eligibility (FR-10) is answered by the database,
- *   not by in-memory filtering.
- */
 @Repository
 public interface RideRequestRepository extends JpaRepository<RideRequest, Long> {
 
-    /** Completed bookings of a passenger — used to derive rateable drivers. */
+    // a passenger's completed bookings, used to work out which drivers they can rate
     List<RideRequest> findByPassengerIdAndStatus(Long passengerId, BookingStatus status);
 
-    /** Completed bookings on a driver's trips — used to derive rateable passengers. */
+    // completed bookings on a driver's trips, same idea the other way round
     List<RideRequest> findByTripOfferDriverIdAndStatus(Long driverId, BookingStatus status);
 
-    /** All requests submitted by a passenger (account deletion cascade). */
+    // needed when deleting an account
     List<RideRequest> findByPassengerId(Long passengerId);
 
-    /**
-     * Open candidates for a driver's trip (FR-15 ranking): requests that are not yet
-     * attached to any trip, still PENDING, and whose pickup window has not elapsed.
-     * Answered by the database rather than by loading every request into memory.
-     */
+    // requests a driver could still pick up: not attached to any trip yet, still PENDING,
+    // and the pickup window hasn't passed. done in sql so we don't load every request
     List<RideRequest> findByTripOfferIsNullAndStatusAndPickupTimeWindowStartAfter(
             BookingStatus status, java.time.LocalDateTime notBefore);
 
-    /**
-     * Bulk-deletes a passenger's bookings with a single JPQL statement.
-     * Unlike entity-by-entity removal this bypasses the persistence context, so a
-     * managed TripOffer (whose passengers collection cascades PERSIST) can never
-     * "resurrect" a removed booking at flush — the root cause of a deletion defect
-     * caught by PaymentAndRouteIntegrationTest. flush/clear keep the context honest.
-     */
+    // one jpql statement instead of deleting entities one by one. going entity-by-entity
+    // meant a managed TripOffer could re-save the booking on flush and the delete would fail.
+    // this skips the persistence context, and flush/clear keep it in sync afterwards
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from RideRequest r where r.passenger.id = :passengerId")
     int deleteBulkByPassengerId(Long passengerId);

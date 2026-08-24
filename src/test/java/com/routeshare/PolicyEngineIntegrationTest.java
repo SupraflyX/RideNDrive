@@ -23,16 +23,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration suite for Sprint 9 — the driver-owned policy engine:
- *
- * - FR-15 travel policy rules: CRUD, veto evaluation on booking, candidate ranking
- * - FR-16 driver-composed pricing rules incl. the loyalty (incentive) discount
- * - Overbooking defect regression: a booking must be feasible TOGETHER with
- *   all already-active bookings, not in isolation
- * - Lifecycle authorization: only the right actor may drive a transition
- * - Monitoring endpoint exposure (DevOps practice area)
- */
+// tests for the driver-owned rules: adding and removing them, rejecting a passenger
+// who breaks one, ranking the ones who pass, driver pricing including the loyalty
+// discount, and the overbooking fix where a booking has to fit alongside the ones
+// already on the trip
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")
@@ -100,7 +94,7 @@ public class PolicyEngineIntegrationTest {
         p2.put("name", "WeakPassenger"); p2.put("password", "password123");
         paxWeakId = (Integer) restTemplate.postForEntity("/api/auth/register-passenger", p2, Map.class).getBody().get("id");
 
-        // Weak passenger's reputation drops below a typical threshold
+        // this one sits below a typical threshold
         User weak = userRepository.findById(Long.valueOf(paxWeakId)).orElseThrow();
         weak.setReputationScore(3.2);
         userRepository.save(weak);
@@ -127,8 +121,8 @@ public class PolicyEngineIntegrationTest {
         t2.put("destination", DEST);
         t2.put("departureTime", LocalDateTime.now().plusDays(2).toString());
         t2.put("maxStops", 3);
-        // Detour budget 5 < minimum fallback leg time (6): sequential double-serving
-        // of a 1-seat car is deterministically infeasible — capacity is the binding constraint
+        // detour budget of 5 is under the smallest possible leg time of 6, so serving
+        // two people one after the other in a 1-seat car can never work. capacity is what binds
         t2.put("maxDetourMinutes", 5);
         smallTripId = (Integer) restTemplate.postForEntity("/api/trips", t2, Map.class).getBody().get("id");
 
@@ -146,9 +140,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(defaultTripId).isNotNull();
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-15: travel rule CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // adding and removing travel rules
 
     @Test
     @Order(3)
@@ -191,9 +183,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-15: veto evaluation on booking
-    // ─────────────────────────────────────────────────────────────────
+    // a rule blocking a booking
 
     @Test
     @Order(7)
@@ -243,9 +233,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getBody()).hasSize(2);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // Overbooking regression (Sprint 9 defect fix)
-    // ─────────────────────────────────────────────────────────────────
+    // overbooking regression
 
     @Test
     @Order(12)
@@ -265,9 +253,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(second.getBody().get("bookingStatus")).isEqualTo("FAILED_ROUTING");
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-15: candidate ranking
-    // ─────────────────────────────────────────────────────────────────
+    // ranking
 
     @Test
     @Order(13)
@@ -310,9 +296,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-16: driver-composed pricing rules + loyalty incentive
-    // ─────────────────────────────────────────────────────────────────
+    // driver pricing rules and the loyalty discount
 
     @Test
     @Order(15)
@@ -390,9 +374,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(sawDefaultTrip).as("rule-less trip must be priced by the default chain").isTrue();
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // Lifecycle authorization (Sprint 9 hardening)
-    // ─────────────────────────────────────────────────────────────────
+    // only the right person can move a booking along
 
     @Test
     @Order(18)
@@ -421,9 +403,7 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // Monitoring (DevOps practice area)
-    // ─────────────────────────────────────────────────────────────────
+    // monitoring endpoints
 
     @Test
     @Order(20)

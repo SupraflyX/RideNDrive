@@ -11,12 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * PaymentController exposes the payment ledger (FR-8 refinement):
- *
- *   GET /api/payments/user/{userId}   the user's statement — paid and received,
- *                                     newest first, each with its PAY-… reference
- */
+// GET /api/payments/user/{userId} - what someone paid and was paid, newest first,
+// each with its PAY-... reference
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {

@@ -7,13 +7,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * VehicleService handles business logic and CRUD operations for Vehicles.
- *
- * Demonstrates:
- * - Layered Architecture: Mediating between controller requests and repo lookups.
- * - Business Rules Enforcement: Ensuring drivers can own and select appropriate vehicles.
- */
 @Service
 public class VehicleService {
 

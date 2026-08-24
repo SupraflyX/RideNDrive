@@ -4,13 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 
-/**
- * TripOffer represents a carpooling trip posted by a driver, including constraints on routing.
- *
- * Demonstrates:
- * - Separation of Concerns (SE Principle 2): Separating TripOffer constraints from Passenger requests.
- * - Algorithmic Parameterization: Providing `maxStops` and `maxDetourMinutes` to parameterize the Search Algorithm.
- */
+// a trip a driver has posted. maxStops and maxDetourMinutes are the limits the planner works inside
 @Entity
 @Table(name = "trip_offers")
 public class TripOffer {
@@ -45,14 +39,10 @@ public class TripOffer {
     @Column(nullable = false)
     private int maxDetourMinutes;
 
-    /**
-     * Bookings attached to this trip. EAGER because every consumer (routing, search,
-     * serialization) needs the bookings immediately and trips carry at most a handful.
-     * CascadeType.ALL lets booking creation persist through the trip aggregate.
-     * CAUTION: the PERSIST cascade means a managed TripOffer re-persists children at
-     * flush — bulk-delete bookings (see RideRequestRepository.deleteBulkByPassengerId)
-     * instead of removing them entity-by-entity in the same persistence context.
-     */
+    // EAGER because routing, search and serialisation all need the bookings straight away,
+    // and a trip only ever has a few. careful: the PERSIST cascade means a managed TripOffer
+    // re-saves its bookings on flush, so delete them in bulk
+    // (RideRequestRepository.deleteBulkByPassengerId) rather than one at a time
     @OneToMany(mappedBy = "tripOffer", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     private java.util.List<RideRequest> passengers = new java.util.ArrayList<>();
 

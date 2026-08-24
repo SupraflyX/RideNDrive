@@ -7,12 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-/**
- * VehicleController exposes REST endpoints for managing Vehicles.
- *
- * Demonstrates:
- * - MVC Architectural Pattern: Receives vehicle related web requests.
- */
 @RestController
 @RequestMapping("/api/vehicles")
 public class VehicleController {
@@ -41,8 +35,7 @@ public class VehicleController {
         return vehicleService.findByDriverId(driverId);
     }
 
-    // A driver's vehicle is registered with their account (/api/auth/register-driver);
-    // there is no standalone creation path, so none is exposed.
+    // vehicles are created with the driver account, so there is no standalone create here
 
     @PutMapping("/{id}")
     public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long id,

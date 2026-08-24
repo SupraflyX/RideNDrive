@@ -17,11 +17,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
-/**
- * Comprehensive integration test suite designed to maximise JaCoCo code coverage
- * by exercising every REST endpoint, including happy paths, error/validation branches,
- * CRUD operations on all controllers, and the full trip-planning lifecycle.
- */
+// walks every rest endpoint, happy paths and error branches both, to keep coverage
+// honest and catch anything that breaks at the http boundary
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")
@@ -32,7 +29,7 @@ public class IntegrationCoverageTest {
         System.setProperty("net.bytebuddy.experimental", "true");
     }
 
-    // Dynamic future date (30 days ahead) — prevents @FutureOrPresent date-rot
+    // always 30 days out, so the tests do not rot as time passes
     private static final java.time.LocalDate FUTURE_DAY = java.time.LocalDate.now().plusDays(30);
     private static final String FUTURE_DATE = FUTURE_DAY.toString();
 
@@ -42,7 +39,7 @@ public class IntegrationCoverageTest {
     @org.springframework.boot.test.mock.mockito.SpyBean
     private com.routeshare.service.StopPlanningService stopPlanningService;
 
-    // Shared state across ordered tests
+    // shared between the ordered tests
     private static Integer driverId;
     private static Integer passengerId;
     private static Integer passenger2Id;
@@ -50,9 +47,7 @@ public class IntegrationCoverageTest {
     private static Integer vehicleId;
     private static Integer ratingId;
 
-    // ─────────────────────────────────────────────────────────────────
-    // 1. AUTH CONTROLLER – Happy Paths
-    // ─────────────────────────────────────────────────────────────────
+    // 1. auth, happy paths
 
     @Test
     @Order(1)
@@ -105,9 +100,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 2. AUTH CONTROLLER – Validation / Error Branches
-    // ─────────────────────────────────────────────────────────────────
+    // 2. auth, validation and errors
 
     @Test
     @Order(5)
@@ -228,9 +221,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 3. USER CONTROLLER – Full CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // 3. users
 
     @Test
     @Order(20)
@@ -292,9 +283,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 4. VEHICLE CONTROLLER – Full CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // 4. vehicles
 
     @Test
     @Order(30)
@@ -365,9 +354,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 5. TRIP OFFER CONTROLLER – Full CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // 5. trip offers
 
     @Test
     @Order(40)
@@ -449,9 +436,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 6. TRIP PLANNING CONTROLLER – search-matches
-    // ─────────────────────────────────────────────────────────────────
+    // 6. searching for matches
 
     @Test
     @Order(50)
@@ -512,9 +497,7 @@ public class IntegrationCoverageTest {
     }
 
 
-    // ─────────────────────────────────────────────────────────────────
-    // 7. TRIP PLANNING CONTROLLER – book-passenger
-    // ─────────────────────────────────────────────────────────────────
+    // 7. booking a seat
 
     @Test
     @Order(60)
@@ -604,9 +587,7 @@ public class IntegrationCoverageTest {
     }
 
 
-    // ─────────────────────────────────────────────────────────────────
-    // 8. TRIP OFFER CONTROLLER – Update trip with bound passengers
-    // ─────────────────────────────────────────────────────────────────
+    // 8. editing a trip that already has passengers
 
     @Test
     @Order(72)
@@ -630,9 +611,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode().value()).isIn(200, 400);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 9. TRIP PLANNING CONTROLLER – check-existing-matches
-    // ─────────────────────────────────────────────────────────────────
+    // 9. checking a driver's existing trips
 
     @Test
     @Order(73)
@@ -671,9 +650,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 10. RIDE REQUEST CONTROLLER – Full CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // 10. ride requests
 
     @Test
     @Order(80)
@@ -701,9 +678,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 11. RATING CONTROLLER – Full CRUD
-    // ─────────────────────────────────────────────────────────────────
+    // 11. ratings
 
     @Test
     @Order(90)
@@ -754,9 +729,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 12. OWNERSHIP – mutating endpoints reject a foreign actor (403)
-    // ─────────────────────────────────────────────────────────────────
+    // 12. ownership: acting on someone else's record should give 403
 
     @Test
     @Order(95)
@@ -844,9 +817,7 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // 13. CLEANUP – Delete Trip, then Users (cascading deletes)
-    // ─────────────────────────────────────────────────────────────────
+    // 13. cleanup, and check the deletes cascade
 
     @Test
     @Order(100)

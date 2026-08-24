@@ -2,13 +2,7 @@ package com.routeshare.model;
 
 import jakarta.persistence.*;
 
-/**
- * Rating represents a two-way feedback event (driver-to-passenger or passenger-to-driver) in the platform.
- *
- * Demonstrates:
- * - Domain Associations: Linking reviewer and reviewee users.
- * - Integrity Constraints: Score must be constrained to the interval [1, 5] (Quality Attribute: Robustness).
- */
+// one user rating another after a completed trip. score is 1-5
 @Entity
 @Table(name = "ratings")
 public class Rating {

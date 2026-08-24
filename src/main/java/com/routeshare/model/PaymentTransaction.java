@@ -5,14 +5,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
-/**
- * PaymentTransaction — one row of the payment ledger (refines FR-8).
- *
- * The gateway (PaymentService) stays a simulated external boundary; this
- * ledger persists what it reports, giving every fare a durable, referenced
- * record: passengers see what they paid, drivers see what they earned, and
- * bookings carry a verifiable payment reference.
- */
+// one row of the payment ledger. the gateway itself is simulated, this is our own
+// record of what it reported so fares have a reference that sticks around
 @Entity
 @Table(name = "payment_transactions")
 public class PaymentTransaction {
@@ -23,7 +17,7 @@ public class PaymentTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Unique human-readable reference, e.g. PAY-2026-4F8A2C. */
+    // e.g. PAY-2026-4F8A2C
     @Column(nullable = false, unique = true, length = 24)
     private String reference;
 
@@ -47,11 +41,11 @@ public class PaymentTransaction {
     @Column(nullable = false, length = 12)
     private Status status = Status.COMPLETED;
 
-    /** Human context, e.g. "Messina → Catania". */
+    // e.g. "Messina -> Catania"
     @Column(length = 200)
     private String memo;
 
-    /** The booking this payment belongs to (plain column, survives request deletion). */
+    // a plain column rather than a relation, so the receipt survives if the booking goes
     private Long rideRequestId;
 
     @Column(nullable = false)

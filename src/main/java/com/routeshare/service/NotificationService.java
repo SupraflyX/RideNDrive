@@ -10,17 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * NotificationService is the single publication point for in-app notifications.
- *
- * Demonstrates:
- * - Observer Pattern (GoF Behavioral / Ch. 9): Domain services (booking lifecycle,
- *   rating submission) publish events here; the user inbox is the subscriber view.
- * - Separation of Concerns (SE Principle 2): Event delivery is isolated from the
- *   business rules that raise the events.
- * - Anticipation of Change (SE Principle 5): Swapping in e-mail or push delivery
- *   later only requires extending this service, not its callers.
- */
+// everything that creates an in-app notification goes through here, so if we ever
+// want email or push as well there's only one place to change
 @Service
 public class NotificationService {
 
@@ -31,30 +22,19 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
-    /**
-     * Publishes a notification to a user.
-     *
-     * @param recipient the user to notify
-     * @param type      the event category
-     * @param message   human-readable message shown in the inbox
-     * @return the persisted Notification
-     */
     public Notification notify(User recipient, NotificationType type, String message) {
         Notification notification = new Notification(recipient, type, message);
         return notificationRepository.save(notification);
     }
 
-    /** Returns all notifications for a user, newest first. */
     public List<Notification> findByRecipient(Long userId) {
         return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId);
     }
 
-    /** Returns the number of unread notifications for a user (for the UI badge). */
     public long unreadCount(Long userId) {
         return notificationRepository.countByRecipientIdAndReadIsFalse(userId);
     }
 
-    /** Marks a single notification as read. */
     public Notification markRead(Long notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found with id: " + notificationId));
@@ -62,7 +42,6 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
-    /** Marks every unread notification of a user as read. */
     @Transactional
     public int markAllRead(Long userId) {
         List<Notification> unread = notificationRepository.findByRecipientIdAndReadIsFalse(userId);

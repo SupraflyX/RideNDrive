@@ -1,9 +1,6 @@
 package com.routeshare.model.enums;
 
-/**
- * NotificationType categorises in-app notifications so the UI can render
- * appropriate icons and users can filter by event source.
- */
+// lets the inbox show a different icon per event
 public enum NotificationType {
     BOOKING,
     RATING,

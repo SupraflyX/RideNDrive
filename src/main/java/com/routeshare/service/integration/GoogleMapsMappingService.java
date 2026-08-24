@@ -16,18 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
-/**
- * GoogleMapsMappingService performs real API calls to the Google Maps Distance Matrix API.
- *
- * Demonstrates:
- * - Robustness (Ch. 2): deterministic local approximation fallback if the network fails
- *   or the API key is absent — no functionality is lost offline.
- * - Separation of Concerns (SE Principle 2): map integration is decoupled from business
- *   logic behind the MappingService interface; the API key is env-injected and only ever
- *   logged masked.
- *
- * Note: recovered from bytecode after a disk failure.
- */
+// talks to the google distance matrix api. if there's no key, or the call fails, it
+// falls back to a rough local guess so the app still works offline
 @Service
 @Primary
 public class GoogleMapsMappingService implements MappingService {
@@ -70,7 +60,7 @@ public class GoogleMapsMappingService implements MappingService {
         return seconds == null ? getFallbackTravelTimeMinutes(origin, destination) : (int) (seconds / 60);
     }
 
-    /** A leg between the same (or an unknown) place costs nothing and needs no API call. */
+    // same place, or a missing one: costs nothing and needs no api call
     private static boolean isTrivialLeg(String origin, String destination) {
         return origin == null || destination == null || origin.equalsIgnoreCase(destination);
     }
@@ -79,13 +69,8 @@ public class GoogleMapsMappingService implements MappingService {
         return apiKey != null && !apiKey.trim().isEmpty();
     }
 
-    /**
-     * The raw Distance Matrix value of one element field ("distance" in metres,
-     * "duration" in seconds), or null when no key is configured or the API returned
-     * no usable element — both of which mean "use the local approximation".
-     *
-     * @param what human-readable metric name, used only in the error message
-     */
+    // pulls one field out of the api response ("distance" in metres, "duration" in
+    // seconds). null means no key or nothing usable came back, so use the local guess
     private Double apiMetric(String origin, String destination, String field, String what) {
         if (!hasApiKey()) {
             return null;
@@ -107,7 +92,7 @@ public class GoogleMapsMappingService implements MappingService {
         }
     }
 
-    /** Maps a per-element Distance Matrix status onto a descriptive exception. */
+    // turns an api status string into something readable
     private static MapApiException elementStatusError(String status, String origin, String destination) {
         if ("ZERO_RESULTS".equalsIgnoreCase(status)) {
             return new MapApiException("No route could be resolved between '" + origin + "' and '" + destination + "'.");

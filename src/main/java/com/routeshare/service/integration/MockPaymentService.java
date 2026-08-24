@@ -4,13 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * MockPaymentService mocks Stripe API integration for identity and cash splitting logic.
- *
- * Demonstrates:
- * - Anticipation of Change (SE Principle 5): Abstraction allows easy substitution of real Stripe SDK.
- * - Testability: Avoids hitting network APIs during test executions.
- */
+// stands in for stripe. always succeeds, which keeps the tests off the network
 @Service
 public class MockPaymentService implements PaymentService {
 

@@ -4,15 +4,7 @@ import com.routeshare.model.enums.TravelRuleType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
-/**
- * DriverTravelRule — one rule of a driver's self-defined travel policy (FR-15).
- *
- * Demonstrates:
- * - Specification Pattern (Ch. 9): each row is a predicate; the driver's policy
- *   is the conjunction of her enabled rules, interpreted by TravelPolicyService.
- * - Rule/policy customizability (project guideline): the OWNER defines the
- *   policy content; the system supplies only the evaluation semantics.
- */
+// one rule in a driver's own travel policy. TravelPolicyService is what checks them
 @Entity
 @Table(name = "driver_travel_rules")
 public class DriverTravelRule {
@@ -31,13 +23,13 @@ public class DriverTravelRule {
     @Column(nullable = false)
     private TravelRuleType type;
 
-    /** Threshold for rules that need one (e.g. MIN_PASSENGER_REPUTATION = 4.0). */
+    // only used by rules that need a number, e.g. MIN_PASSENGER_REPUTATION = 4.0
     private Double numericValue;
 
     @Column(nullable = false)
     private boolean enabled = true;
 
-    /** Evaluation/precedence order (lower first). */
+    // lower runs first
     @Column(nullable = false)
     private int priority = 10;
 

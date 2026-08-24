@@ -6,14 +6,6 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.LocalDateTime;
 
-/**
- * User represents a participant in the RouteShare platform, acting as a DRIVER or PASSENGER.
- *
- * Demonstrates:
- * - Rigor & Formality (SE Principle 1): Formal definition of the User schema via JPA metadata mapping to SQL.
- * - Object-Oriented Encapsulation: Restricting direct access to state fields and exposing via getter/setter interfaces.
- * - Software Quality Attributes - Reusability & Maintainability (Ch. 2): Generic data representation.
- */
 @Entity
 @Table(name = "users")
 public class User {
@@ -42,11 +34,8 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime lastActiveDate = LocalDateTime.now();
 
-    /**
-     * BCrypt hash of the user's password. WRITE_ONLY access means clients can
-     * send a password in requests, but the hash is never serialized into any
-     * API response (prevents credential-hash disclosure).
-     */
+    // bcrypt hash. WRITE_ONLY means a client can send a password in, but the hash
+    // never comes back out in a response
     @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     @NotBlank(message = "Password cannot be empty")
     @Size(min = 6, message = "Password must be at least 6 characters")

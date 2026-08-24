@@ -7,12 +7,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * TripOfferService handles business logic and CRUD operations for TripOffers.
- *
- * Demonstrates:
- * - Layered Architecture: Decoupling HTTP interactions from database queries.
- */
 @Service
 public class TripOfferService {
 

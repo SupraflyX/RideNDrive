@@ -7,16 +7,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
-/**
- * Notification represents an in-app message delivered to a user in reaction to
- * a domain event (booking state change, new rating received, system notice).
- *
- * Demonstrates:
- * - Observer Pattern (GoF Behavioral / Ch. 9): Notifications are emitted by services
- *   observing domain events, decoupling event producers from the inbox UI.
- * - Auditability (Quality Attribute, Ch. 2): Every user-facing event is persisted
- *   with a timestamp, forming a per-user audit trail.
- */
+// an in-app message for a user, created when something happens to them
 @Entity
 @Table(name = "notifications")
 public class Notification {
@@ -39,7 +30,7 @@ public class Notification {
     @Column(nullable = false, length = 500)
     private String message;
 
-    /** MySQL reserves the keyword READ, so the column is mapped as is_read. */
+    // READ is a reserved word in mysql, so the column is is_read
     @Column(name = "is_read", nullable = false)
     private boolean read = false;
 

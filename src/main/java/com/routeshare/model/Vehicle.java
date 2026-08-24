@@ -3,13 +3,6 @@ package com.routeshare.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 
-/**
- * Vehicle represents a vehicle registered by a DRIVER to perform carpool trips.
- *
- * Demonstrates:
- * - Domain Association (UML Class Diagram support / Ch. 7): A 1-to-many relationship where User (Driver) has Vehicles.
- * - Object-Oriented Integrity: Ensuring capacity is capped and validated.
- */
 @Entity
 @Table(name = "vehicles")
 public class Vehicle {

@@ -16,15 +16,10 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration suite for the payment ledger and the driver route cockpit
- * (refinements of FR-8 and FR-5/FR-7):
- *
- * - every booking produces a persisted, referenced ledger transaction
- * - both parties see the transfer on their statement
- * - account deletion cascades over ledger rows (regression: FK integrity)
- * - the route endpoint re-plans side-effect-free with metrics and waypoints
- */
+// tests for the payment ledger and the driver route view:
+// every booking writes a transaction, both sides see it on their statement,
+// deleting an account clears its ledger rows, and the route endpoint re-plans
+// without saving anything
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")

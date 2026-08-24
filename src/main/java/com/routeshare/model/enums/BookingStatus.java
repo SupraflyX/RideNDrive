@@ -1,19 +1,10 @@
 package com.routeshare.model.enums;
 
-/**
- * BookingStatus models the lifecycle of a RideRequest as an explicit finite state machine.
- *
- * Allowed transitions (enforced by BookingLifecycleService):
- *   PENDING   -> CONFIRMED | REJECTED | CANCELLED
- *   CONFIRMED -> CANCELLED | COMPLETED
- *   REJECTED  -> (terminal)
- *   CANCELLED -> (terminal)
- *   COMPLETED -> (terminal)
- *
- * Demonstrates:
- * - State Pattern (GoF Behavioral): Behaviour of a booking depends on its current state.
- * - Rigor & Formality (SE Principle 1): The legal transition relation is defined formally.
- */
+// the states a booking can be in. allowed moves:
+//   PENDING   -> CONFIRMED | REJECTED | CANCELLED
+//   CONFIRMED -> CANCELLED | COMPLETED
+//   REJECTED / CANCELLED / COMPLETED are final
+// BookingLifecycleService is what actually enforces this
 public enum BookingStatus {
     PENDING,
     CONFIRMED,

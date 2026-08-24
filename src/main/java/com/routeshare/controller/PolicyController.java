@@ -25,17 +25,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * PolicyController — REST surface of the driver-owned policy engine (FR-15, FR-16).
- *
- *   GET    /api/policies/travel/{driverId}          the driver's travel rules
- *   POST   /api/policies/travel/{driverId}          add a travel rule {type, numericValue?, priority?}
- *   DELETE /api/policies/travel/rule/{ruleId}       remove a travel rule
- *   GET    /api/policies/pricing/{driverId}         the driver's pricing rules
- *   POST   /api/policies/pricing/{driverId}         add a pricing rule {type, value, priority?}
- *   DELETE /api/policies/pricing/rule/{ruleId}      remove a pricing rule
- *   GET    /api/policies/rank/{driverId}/{tripId}   open candidates ranked by the policy engine
- */
+// where drivers manage their own rules:
+//   GET    /api/policies/travel/{driverId}         their travel rules
+//   POST   /api/policies/travel/{driverId}         add one
+//   DELETE /api/policies/travel/rule/{ruleId}      remove one
+//   GET    /api/policies/pricing/{driverId}        their pricing rules
+//   POST   /api/policies/pricing/{driverId}        add one
+//   DELETE /api/policies/pricing/rule/{ruleId}     remove one
+//   GET    /api/policies/rank/{driverId}/{tripId}  open requests, ranked
 @RestController
 @RequestMapping("/api/policies")
 public class PolicyController {
@@ -62,7 +59,6 @@ public class PolicyController {
         this.travelPolicyService = travelPolicyService;
     }
 
-    // ── Travel rules ─────────────────────────────────────────────────
 
     @GetMapping("/travel/{driverId}")
     public ResponseEntity<List<DriverTravelRule>> listTravelRules(@PathVariable Long driverId) {
@@ -117,7 +113,6 @@ public class PolicyController {
         return ResponseEntity.ok(Map.of("deleted", ruleId));
     }
 
-    // ── Pricing rules ────────────────────────────────────────────────
 
     @GetMapping("/pricing/{driverId}")
     public ResponseEntity<List<DriverPricingRule>> listPricingRules(@PathVariable Long driverId) {
@@ -168,7 +163,6 @@ public class PolicyController {
         return ResponseEntity.ok(Map.of("deleted", ruleId));
     }
 
-    // ── Candidate ranking (FR-15: "rank the best passengers") ────────
 
     @GetMapping("/rank/{driverId}/{tripId}")
     public ResponseEntity<?> rankCandidates(@PathVariable Long driverId, @PathVariable Long tripId) {
@@ -178,8 +172,7 @@ public class PolicyController {
                     .body(Map.of("error", "Trip not found for this driver."));
         }
 
-        // Candidates: open (unassigned, PENDING) requests whose window has not elapsed —
-        // selected by the database, not by scanning every request in memory.
+        // open requests whose window is still valid, picked out in sql rather than in memory
         List<RideRequest> open = rideRequestRepository
                 .findByTripOfferIsNullAndStatusAndPickupTimeWindowStartAfter(
                         BookingStatus.PENDING, LocalDateTime.now().minusHours(1));
