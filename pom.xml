@@ -95,6 +95,18 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.12</version>
+                <configuration>
+                    <!--
+                        DemoDataSeeder is annotated @Profile("!test"), so it never loads
+                        under the test profile and cannot be covered by any test. Counting
+                        development-only scaffolding in the denominator understates how well
+                        the product code is actually covered, so it is excluded here. This
+                        exclusion is stated in the report alongside the coverage figure.
+                    -->
+                    <excludes>
+                        <exclude>com/routeshare/config/DemoDataSeeder.class</exclude>
+                    </excludes>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
