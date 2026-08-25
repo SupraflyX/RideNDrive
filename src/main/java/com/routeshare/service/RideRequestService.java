@@ -7,12 +7,6 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * RideRequestService handles business logic and CRUD operations for RideRequests.
- *
- * Demonstrates:
- * - Layered Architecture: Decoupling passenger request operations.
- */
 @Service
 public class RideRequestService {
 

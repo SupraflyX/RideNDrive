@@ -23,12 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * TripOfferController exposes CRUD over driver trip offers (FR-5). Updates that would
- * break the routing of already-booked passengers are rejected (re-planned via the DFS).
- *
- * Note: recovered from bytecode after a disk failure.
- */
+// crud for the trips drivers post. an edit that would break the route for people
+// already booked on it gets rejected
 @RestController
 @RequestMapping("/api/trips")
 public class TripOfferController {
@@ -70,8 +66,8 @@ public class TripOfferController {
         if (existingOffer == null) {
             return ResponseEntity.notFound().build();
         }
-        // Outside the catch below: SecurityException is a RuntimeException, and being
-        // swallowed there would report a rejected edit as a 404 instead of a 403.
+        // deliberately outside the try below: SecurityException is a RuntimeException, so
+        // catching it there would turn a rejected edit into a 404 instead of a 403
         Ownership.require(existingOffer.getDriver() == null ? null : existingOffer.getDriver().getId(),
                 actorId, "trip");
 
@@ -112,8 +108,8 @@ public class TripOfferController {
         }
         Ownership.require(offer.getDriver() == null ? null : offer.getDriver().getId(), actorId, "trip");
         if (hasCompletedBookings(offer)) {
-            // Deleting would cascade over COMPLETED bookings and orphan the payment
-            // ledger references and rating eligibility — completed trips are history.
+            // completed trips are history. deleting would cascade over those bookings and
+            // orphan the payment references and rating eligibility that point at them
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "This trip is completed; it cannot be cancelled."));
         }
@@ -121,7 +117,7 @@ public class TripOfferController {
         return ResponseEntity.ok().build();
     }
 
-    /** A trip with at least one COMPLETED booking is an immutable historical record. */
+    // a trip with any completed booking can no longer be changed
     private boolean hasCompletedBookings(TripOffer offer) {
         return offer.getPassengers() != null && offer.getPassengers().stream()
                 .anyMatch(r -> r.getStatus() == BookingStatus.COMPLETED);

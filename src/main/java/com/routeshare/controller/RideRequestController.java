@@ -7,12 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-/**
- * RideRequestController exposes REST endpoints for managing RideRequests.
- *
- * Demonstrates:
- * - MVC Architectural Pattern: Receives ride request creation and retrieval requests.
- */
 @RestController
 @RequestMapping("/api/rides")
 public class RideRequestController {
@@ -38,8 +32,7 @@ public class RideRequestController {
 
     @PostMapping
     public ResponseEntity<?> createRide(@RequestBody RideRequest rideRequest) {
-        // Creation-time temporal rule (moved off the entity so lifecycle updates
-        // of historical bookings are not re-validated at flush):
+        // checked here rather than on the entity, so editing an old booking doesn't fail
         if (rideRequest.getPickupTimeWindowEnd() != null
                 && rideRequest.getPickupTimeWindowEnd().isBefore(java.time.LocalDateTime.now())) {
             return ResponseEntity.badRequest()

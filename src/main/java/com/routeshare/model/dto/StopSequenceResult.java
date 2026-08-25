@@ -3,21 +3,10 @@ package com.routeshare.model.dto;
 import java.util.List;
 import java.util.Map;
 
-/**
- * StopSequenceResult is a Data Transfer Object (DTO) returning the results of the Stop Planning Algorithm.
- *
- * Demonstrates:
- * - Data Transfer Object Pattern: Decoupling algorithmic execution results from entity models.
- * - Separation of Concerns: Capturing routing details and constraint feasibility metadata (e.g. violation reason).
- */
+// what the planner gives back: the route, how long it takes, and whether it worked at all
 public class StopSequenceResult {
 
-    private List<String> sequence;
-
-    /**
-     * The same route in structured form (kind / location / passenger), so consumers
-     * never parse the display labels in {@link #sequence} back into data.
-     */
+    private List<String> sequence; // display labels, derived from stops
     private List<PlannedStop> stops;
 
     private int totalTimeMinutes;
@@ -25,7 +14,7 @@ public class StopSequenceResult {
     private boolean feasible;
     private String violationReason;
 
-    /** Search instrumentation (NFR transparency): nodes explored and prunings per constraint. */
+    // how hard the search worked: nodes visited and how many branches each constraint cut
     private Map<String, Object> searchStats;
 
     public StopSequenceResult() {
@@ -51,7 +40,7 @@ public class StopSequenceResult {
         return stops;
     }
 
-    /** Sets the structured stops and derives the display sequence from them. */
+    // setting the stops also rebuilds the label list, so the two can never disagree
     public void setStops(List<PlannedStop> stops) {
         this.stops = stops;
         this.sequence = stops == null ? null : stops.stream().map(PlannedStop::getLabel).toList();

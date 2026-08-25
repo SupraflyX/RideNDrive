@@ -16,32 +16,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * TravelPolicyService — the driver-defined travel policy engine (FR-15).
- *
- * Two responsibilities, mirroring the project guideline "rule/policy
- * customizability, letting the owner define her … traveling policy":
- *
- * 1. VETO EVALUATION — a candidate request is checked against every enabled
- *    rule of the trip's driver, in priority order. Any violated rule vetoes
- *    the match (conflict resolution: veto dominates), and every violation is
- *    reported for auditability.
- *
- * 2. CANDIDATE RANKING — among non-vetoed candidates, a deterministic score
- *    orders "the best passengers first": reputation (the incentive mechanism —
- *    good behaviour buys priority), incentive tier bonus, destination-zone
- *    affinity, and a small light-luggage bonus.
- *
- * Demonstrates:
- * - Specification Pattern (GoF-adjacent, Ch. 9): rules are composable
- *   predicates owned by the driver, interpreted generically by this service.
- * - Separation of Concerns: policy semantics live here, not in matching or
- *   booking code.
- */
+// handles the rules a driver sets about who they'll take.
+//
+// two jobs. first, checking a candidate against every rule the driver has switched on:
+// one broken rule is enough to reject them, and we collect all the violations so the
+// driver can see why. second, putting the ones that pass in order, best first, using
+// reputation, tier, whether they're going to the same place, and how much luggage.
 @Service
 public class TravelPolicyService {
 
-    /** Result of evaluating one candidate against a driver's policy. */
     public static class PolicyDecision {
         private final boolean allowed;
         private final List<String> violations;
@@ -55,7 +38,6 @@ public class TravelPolicyService {
         public List<String> getViolations() { return violations; }
     }
 
-    /** A ranked candidate with its score and a transparent breakdown. */
     public static class RankedCandidate {
         private final RideRequest request;
         private final double score;
@@ -79,11 +61,7 @@ public class TravelPolicyService {
         this.ruleRepository = ruleRepository;
     }
 
-    /**
-     * Evaluates a candidate request against the driver's enabled rules.
-     * Veto semantics: every violated rule is collected; one violation suffices
-     * to reject (documented precedence — veto dominates any positive signal).
-     */
+    // one broken rule is enough to reject, but we still collect all of them
     public PolicyDecision evaluate(Long driverId, TripOffer offer, RideRequest candidate) {
         List<DriverTravelRule> rules = ruleRepository.findByDriverIdAndEnabledTrueOrderByPriorityAsc(driverId);
         List<String> violations = new ArrayList<>();
@@ -117,15 +95,11 @@ public class TravelPolicyService {
         return new PolicyDecision(violations.isEmpty(), violations);
     }
 
-    /**
-     * Ranks non-vetoed candidates for a driver's trip — "the best passengers"
-     * first. Deterministic weighted score with a transparent breakdown:
-     *
-     *   reputation  = reputationScore * 10          (0–50)
-     *   tierBonus   = STANDARD 0 / SILVER 5 / GOLD 10 / PREMIUM_PRICING 15
-     *   zoneBonus   = 8 if same destination as the trip
-     *   luggage     = NONE +3 / SMALL +1 / LARGE +0
-     */
+    // scores the candidates that got through, highest first:
+    //   reputation  score * 10                                  (0-50)
+    //   tier        STANDARD 0 / SILVER 5 / GOLD 10 / PREMIUM 15
+    //   same place  8 if they're going where the driver is going
+    //   luggage     none +3 / small +1 / large +0
     public List<RankedCandidate> rankCandidates(Long driverId, TripOffer offer, List<RideRequest> candidates) {
         List<RankedCandidate> ranked = new ArrayList<>();
 

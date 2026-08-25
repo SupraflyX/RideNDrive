@@ -6,13 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-/**
- * RatingRepository provides DB operations for the Rating entity.
- *
- * Demonstrates:
- * - Repository Pattern: Custom query capabilities to compute aggregates (rolling average).
- * - Separation of Concerns: Decoupling rating queries from the user profile management.
- */
 @Repository
 public interface RatingRepository extends JpaRepository<Rating, Long> {
 
@@ -20,6 +13,6 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
 
     long countByRevieweeId(Long revieweeId);
 
-    /** All ratings a user is involved in, either side (account deletion cascade). */
+    // both directions, needed when deleting an account
     List<Rating> findByReviewerIdOrRevieweeId(Long reviewerId, Long revieweeId);
 }

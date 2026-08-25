@@ -10,22 +10,16 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * PricingEngine coordinates the execution of the Chain of Responsibility for carpool fare calculation.
- *
- * Design Patterns:
- * - Chain of Responsibility (GoF Behavioral / Ch. 9): Rules are chained and executed in priority order.
- * - Strategy (GoF Behavioral): Concrete rules implementing the PricingPolicy interface.
- * - Factory Method (Spring DI / Ch. 9): Dynamically discovers all active policies at runtime.
- *
- * Course Syllabus Concepts:
- * - Anticipation of Change (SE Principle 5): Adding a new pricing rule does not alter this engine.
- * - Low Coupling & High Cohesion: The engine only knows about the PricingPolicy abstraction, not details of specific surcharge rules.
- */
+// works out what a ride costs.
+//
+// two ways in. the default one runs every PricingPolicy in priority order. the other
+// takes a driver's own rules and applies those instead. a driver with no rules gets
+// the default. either way the result carries a list of what got applied, so a fare
+// can always be explained.
 @Service
 public class PricingEngine {
 
-    /** €2.00 platform fee plus a per-kilometre rate is the shape of every fare. */
+    // every fare is a flat fee plus so much per km
     private static final double PLATFORM_FEE_EUR = 2.00;
     private static final double DEFAULT_RATE_PER_KM = 0.50;
 
@@ -33,29 +27,21 @@ public class PricingEngine {
 
     @Autowired
     public PricingEngine(List<PricingPolicy> policies) {
-        // Sort policies in ascending order of their priority values (lowest priority value goes first)
+        // lowest priority number runs first
         this.policies = policies.stream()
                 .sorted(Comparator.comparingInt(PricingPolicy::getPriority))
                 .toList();
     }
 
-    /**
-     * Executes the platform's default pricing chain on the given ride context.
-     *
-     * @param context The ride context data.
-     * @return PricingResult containing base fare, final calculated fare, and applied policies audit.
-     */
     public PricingResult calculateFare(RideContext context) {
         if (context == null) {
             return new PricingResult(0.0, 0.0, new ArrayList<>());
         }
 
-        // Base fare for carpooling (fuel/toll splitting): platform fee + per-kilometre rate
         double baseFare = baseFare(context, DEFAULT_RATE_PER_KM);
         double currentFare = baseFare;
         List<String> appliedPolicies = new ArrayList<>();
 
-        // Chain of Responsibility traversal
         for (PricingPolicy policy : policies) {
             if (policy.appliesTo(context)) {
                 double newFare = policy.applyPolicy(currentFare, context);
@@ -67,15 +53,8 @@ public class PricingEngine {
         return new PricingResult(round(baseFare), round(currentFare), appliedPolicies);
     }
 
-    /**
-     * FR-16 — driver-composed pricing policy (rule/policy customizability).
-     *
-     * When the driver has defined her own enabled pricing rules, the engine
-     * interprets that ordered rule set instead of the platform default chain;
-     * every applied rule is written to the audit trail as
-     * "DriverRule:TYPE(value)". With no rules, the default chain applies —
-     * documented fallback semantics.
-     */
+    // same thing but using the driver's own rules. each one that fires gets written
+    // into the audit list as "DriverRule:TYPE(value)"
     public PricingResult calculateFare(RideContext context, List<DriverPricingRule> driverRules) {
         if (driverRules == null || driverRules.isEmpty()) {
             return calculateFare(context);
@@ -86,7 +65,7 @@ public class PricingEngine {
 
         List<String> applied = new ArrayList<>();
 
-        // Base rate: the driver's own €/km if she defined one, platform default otherwise
+        // driver's own per-km rate if they set one, otherwise ours
         double ratePerKm = DEFAULT_RATE_PER_KM;
         for (DriverPricingRule rule : driverRules) {
             if (rule.getType() == PricingRuleType.BASE_RATE_PER_KM) {
@@ -99,7 +78,7 @@ public class PricingEngine {
         double baseFare = baseFare(context, ratePerKm);
         double fare = baseFare;
 
-        // Conditions come from RideContext — the same definitions the platform chain uses.
+        // the conditions themselves live on RideContext, so both paths agree on them
         for (DriverPricingRule rule : driverRules) {
             double value = rule.getValue();
             switch (rule.getType()) {
@@ -122,26 +101,24 @@ public class PricingEngine {
                     }
                 }
                 case LOYALTY_TIER_DISCOUNT_PCT -> {
-                    // Incentive mechanism: reputation tier earns cheaper rides
                     if (context.isLoyaltyTier()) {
                         fare *= (1.0 - value / 100.0);
                         applied.add(String.format("DriverRule:LOYALTY_TIER_DISCOUNT(%.0f%% for %s)",
                                 value, context.getPassengerTier()));
                     }
                 }
-                case BASE_RATE_PER_KM -> { /* consumed above */ }
+                case BASE_RATE_PER_KM -> { } // handled above
             }
         }
 
         return new PricingResult(round(baseFare), Math.max(0.0, round(fare)), applied);
     }
 
-    /** Every fare starts as the platform fee plus a per-kilometre rate. */
     private static double baseFare(RideContext context, double ratePerKm) {
         return PLATFORM_FEE_EUR + (context.getDistanceKm() * ratePerKm);
     }
 
-    /** Fares are money: two decimal places, always. */
+    // money, so always two decimals
     private static double round(double fare) {
         return Math.round(fare * 100.0) / 100.0;
     }

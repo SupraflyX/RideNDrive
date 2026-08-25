@@ -8,13 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * UserService handles business logic and CRUD operations for Users.
- *
- * Demonstrates:
- * - Layered Architecture (MVC/Layered): Service layer separating business operations from Controllers and repositories.
- * - Dependency Injection (Spring IoC / Creational pattern): Interacting with repositories via interface abstractions.
- */
 @Service
 public class UserService {
 
@@ -64,8 +57,7 @@ public class UserService {
         user.setIncentiveTier(userDetails.getIncentiveTier());
         user.setLastActiveDate(userDetails.getLastActiveDate());
         if (userDetails.getPassword() != null && !userDetails.getPassword().isEmpty()) {
-            // Check if it's already a BCrypt hash (starts with $2a$ or $2b$ or $2y$) to avoid double hashing, 
-            // though typically raw passwords shouldn't look like bcrypt hashes.
+            // don't hash it twice if what we got already looks like a bcrypt hash
             String pwd = userDetails.getPassword();
             if (!pwd.startsWith("$2a$") && !pwd.startsWith("$2b$") && !pwd.startsWith("$2y$")) {
                 pwd = org.mindrot.jbcrypt.BCrypt.hashpw(pwd, org.mindrot.jbcrypt.BCrypt.gensalt());
@@ -75,11 +67,8 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    /**
-     * Cascading account deletion (FR-4): all dependent records are removed via
-     * repository derived queries (answered by the database, not by loading
-     * every row into memory) inside a single transaction.
-     */
+    // deleting an account has to clear everything pointing at it first, all in one
+    // transaction so we never end up half deleted
     @Transactional
     public void delete(Long id) {
         paymentTransactionRepository.deleteAll(paymentTransactionRepository.findByPayerIdOrPayeeId(id, id));
@@ -87,10 +76,9 @@ public class UserService {
         ratingRepository.deleteAll(ratingRepository.findByReviewerIdOrRevieweeId(id, id));
         vehicleRepository.deleteAll(vehicleRepository.findByDriverId(id));
         tripOfferRepository.deleteAll(tripOfferRepository.findByDriverId(id));
-        // Bulk JPQL delete: TripOffer.passengers cascades PERSIST, so removing these
-        // bookings entity-by-entity inside this transaction lets a managed trip
-        // "resurrect" them at flush (FK violation on the final user delete). The bulk
-        // statement bypasses the persistence context; flush/clear keep it consistent.
+        // has to be a bulk delete. TripOffer cascades PERSIST to its bookings, so removing
+        // them one at a time lets a managed trip re-save them on flush and the final user
+        // delete then fails on a foreign key. flush/clear afterwards keep things in sync
         rideRequestRepository.deleteBulkByPassengerId(id);
         userRepository.deleteById(id);
     }

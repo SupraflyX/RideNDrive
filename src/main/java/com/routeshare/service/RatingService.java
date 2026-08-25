@@ -8,13 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * RatingService handles business logic and CRUD operations for Ratings.
- *
- * Demonstrates:
- * - Event Trigger / Observer Pattern (GoF Behavioral / Ch. 9): Propagates rating submission events to the Reputation system.
- * - Separation of Concerns (SE Principle 2): Rating persistence is separated from reputation calculation.
- */
+// saving a rating also kicks off the reputation update and tells the person they were rated
 @Service
 public class RatingService {
 
@@ -41,10 +35,8 @@ public class RatingService {
 
     public Rating save(Rating rating) {
         Rating savedRating = ratingRepository.save(rating);
-        // Step 1: Event Reception propagation to Reputation system
         if (savedRating.getReviewee() != null) {
             reputationService.handleNewRating(savedRating.getReviewee().getId(), savedRating.getScore());
-            // Observer Pattern: notify the reviewee about the new rating event
             notificationService.notify(savedRating.getReviewee(),
                     com.routeshare.model.enums.NotificationType.RATING,
                     "You received a new " + savedRating.getScore() + "-star rating.");

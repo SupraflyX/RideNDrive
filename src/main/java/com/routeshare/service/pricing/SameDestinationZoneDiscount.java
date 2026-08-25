@@ -2,12 +2,7 @@ package com.routeshare.service.pricing;
 
 import org.springframework.stereotype.Component;
 
-/**
- * SameDestinationZoneDiscount implements a 15% discount when the passenger shares the driver's exact destination.
- *
- * Demonstrates:
- * - Strategy Pattern implementation: Spatial matching rules providing cost incentives.
- */
+// 15% off if the passenger is going to the same place as the driver
 @Component
 public class SameDestinationZoneDiscount implements PricingPolicy {
 
@@ -18,7 +13,6 @@ public class SameDestinationZoneDiscount implements PricingPolicy {
 
     @Override
     public double applyPolicy(double currentFare, RideContext context) {
-        // Apply 15% discount
         return currentFare * 0.85;
     }
 

@@ -23,17 +23,9 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration test suite for Sprint 6 (Booking Lifecycle, FR-12) and
- * Sprint 7 (Notification Center, FR-13).
- *
- * Verifies:
- * - The booking finite state machine: legal transitions succeed, illegal
- *   transitions are rejected with HTTP 409 CONFLICT.
- * - Observer-pattern notifications: booking transitions and new ratings
- *   emit notifications to the correct recipient.
- * - Inbox endpoints: listing, unread count, mark-read, mark-all-read.
- */
+// end to end tests for the booking lifecycle and the notification inbox.
+// checks that legal moves work, illegal ones come back 409, the right person gets
+// notified each time, and the inbox endpoints behave
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -64,9 +56,7 @@ public class BookingLifecycleIntegrationTest {
     private static Long pendingRequestId;
     private static Long secondRequestId;
 
-    // ─────────────────────────────────────────────────────────────────
-    // Setup: driver + passenger + trip + pending booking
-    // ─────────────────────────────────────────────────────────────────
+    // setup: driver, passenger, trip, one pending booking
 
     @Test
     @Order(1)
@@ -122,9 +112,7 @@ public class BookingLifecycleIntegrationTest {
         assertThat(request.getStatus()).isEqualTo(BookingStatus.PENDING);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-12: State machine — legal transitions
-    // ─────────────────────────────────────────────────────────────────
+    // legal transitions
 
     @Test
     @Order(4)
@@ -134,7 +122,7 @@ public class BookingLifecycleIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody().get("status")).isEqualTo("CONFIRMED");
 
-        // Observer check: passenger received a BOOKING notification
+        // the passenger should have been notified
         ResponseEntity<List> inbox = restTemplate.getForEntity(
                 "/api/notifications/user/" + passengerId, List.class);
         assertThat(inbox.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -206,7 +194,7 @@ public class BookingLifecycleIntegrationTest {
     @Test
     @Order(11)
     public void stateMachine_guardTable_isFormallyCorrect() {
-        // Direct unit-level verification of the transition relation
+        // check the transition table directly too
         assertThat(bookingLifecycleService.isLegalTransition(BookingStatus.PENDING, BookingStatus.CONFIRMED)).isTrue();
         assertThat(bookingLifecycleService.isLegalTransition(BookingStatus.PENDING, BookingStatus.REJECTED)).isTrue();
         assertThat(bookingLifecycleService.isLegalTransition(BookingStatus.PENDING, BookingStatus.CANCELLED)).isTrue();
@@ -219,14 +207,12 @@ public class BookingLifecycleIntegrationTest {
         assertThat(bookingLifecycleService.isLegalTransition(BookingStatus.COMPLETED, BookingStatus.CANCELLED)).isFalse();
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-12: Trip completion
-    // ─────────────────────────────────────────────────────────────────
+    // completing a trip
 
     @Test
     @Order(12)
     public void completeTrip_transitionsConfirmedBookings() {
-        // Attach a CONFIRMED booking to the trip, then complete the trip
+        // put a confirmed booking on the trip, then close the trip
         User passenger = userRepository.findById(Long.valueOf(passengerId)).orElseThrow();
         TripOffer trip = tripOfferRepository.findById(Long.valueOf(tripId)).orElseThrow();
 
@@ -251,9 +237,7 @@ public class BookingLifecycleIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-13: Notification inbox endpoints
-    // ─────────────────────────────────────────────────────────────────
+    // the inbox endpoints
 
     @Test
     @Order(14)
@@ -300,14 +284,12 @@ public class BookingLifecycleIntegrationTest {
         assertThat(unread.longValue()).isZero();
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // FR-10 integrity: rating eligibility from COMPLETED bookings
-    // ─────────────────────────────────────────────────────────────────
+    // you can only rate people you actually rode with
 
     @Test
     @Order(20)
     public void rateable_passengerCanRateDriver_afterCompletedTrip() {
-        // Test 12 completed a booking of LifecyclePassenger on LifecycleDriver's trip
+        // the earlier test completed a booking between these two
         ResponseEntity<List> res = restTemplate.getForEntity(
                 "/api/bookings/rateable/" + passengerId, List.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -328,11 +310,10 @@ public class BookingLifecycleIntegrationTest {
     @Test
     @Order(22)
     public void completeTrip_afterPickupWindowElapsed_succeeds() {
-        // Regression for a demo-found defect: completing a trip failed with
-        // "could not commit JPA transaction" because @FutureOrPresent on the booking's
-        // pickup window was re-validated at flush when the (historical) booking was
-        // dirtied by the status transition. Temporal rules now apply only at creation,
-        // so lifecycle transitions on elapsed bookings must succeed.
+        // regression: completing a trip used to blow up with "could not commit JPA
+        // transaction" because @FutureOrPresent on the pickup window was re-checked on
+        // flush when the status changed. that rule only applies at creation now, so
+        // transitions on old bookings have to keep working
         User driver = userRepository.save(
                 new User("WindowElapsedDriver", com.routeshare.model.enums.UserRole.DRIVER));
         User pax = userRepository.save(

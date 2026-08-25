@@ -2,11 +2,8 @@ package com.routeshare.service.pricing;
 
 import org.springframework.stereotype.Component;
 
-/**
- * LongDistanceDiscountPolicy implements a scaling discount for long distance rides.
- * Trips over 100km receive a steep reduction to better reflect carpooling cost-sharing (fuel/tolls)
- * rather than taxi-like per-kilometer rates.
- */
+// long trips shouldn't be priced like a taxi. over 100km we cap the fare at roughly
+// what sharing fuel and tolls would actually cost
 @Component
 public class LongDistanceDiscountPolicy implements PricingPolicy {
 
@@ -19,11 +16,10 @@ public class LongDistanceDiscountPolicy implements PricingPolicy {
     public double applyPolicy(double currentFare, RideContext context) {
         double distance = context.getDistanceKm();
         
-        // Target fare for long distance carpooling is roughly 0.045 EUR per km + 2.00 base fee
-        // For a 1250km trip, this results in approximately 58.25 EUR
+        // about 0.045 per km on top of the base fee
         double targetFare = 2.00 + (distance * 0.045);
         
-        // We only apply this policy to reduce the fare, not increase it.
+        // only ever bring the fare down, never up
         return Math.min(currentFare, targetFare);
     }
 

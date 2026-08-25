@@ -1,33 +1,21 @@
 package com.routeshare.controller;
 
-/**
- * Ownership centralises the "you may only change your own records" check that the
- * mutating REST endpoints apply.
- *
- * The platform identifies the acting user by an {@code actorId} request parameter —
- * the same convention BookingController has used since Sprint 9. A failed check raises
- * SecurityException, which GlobalExceptionHandler renders as HTTP 403.
- *
- * SCOPE — this is ownership enforcement, not authentication. Nothing yet proves that
- * the caller *is* the actor they claim to be; a client can still assert any actorId.
- * Closing that requires real authentication (a session or signed token verified
- * server-side), which is a separate piece of work. What this class does buy is that
- * every mutating endpoint now agrees on who is allowed to touch what, so adding real
- * identity later means changing how `actorId` is obtained — in one place — rather than
- * introducing the concept of an owner across a dozen endpoints.
- */
+// the "you can only change your own stuff" check, in one place so every endpoint
+// does it the same way. the caller says who they are with an actorId parameter, and
+// a failed check throws SecurityException, which comes back as a 403.
+//
+// worth being clear about what this is not: it's ownership, not authentication.
+// nothing here proves the caller really is the actorId they claim, so a client can
+// still just send someone else's id. fixing that needs real login sessions or tokens
+// checked on the server, which is its own job. what this does buy is that when that
+// happens, only the way actorId is obtained has to change, in one file, instead of
+// adding the whole idea of an owner to a dozen endpoints.
 final class Ownership {
 
     private Ownership() {
     }
 
-    /**
-     * Requires that the acting user is the owner of the record being changed.
-     *
-     * @param ownerId the id of the user who owns the record (null means unowned)
-     * @param actorId the id supplied by the caller
-     * @param what    human-readable subject, used in the 403 message
-     */
+    // ownerId null means nobody owns it, which also fails
     static void require(Long ownerId, Long actorId, String what) {
         if (ownerId == null || actorId == null || !ownerId.equals(actorId)) {
             throw new SecurityException("Only the owner of this " + what + " may change it.");

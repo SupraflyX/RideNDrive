@@ -19,30 +19,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * BookingLifecycleService enforces the booking finite state machine and emits
- * notifications on every transition.
- *
- * Legal transitions:
- *   PENDING   -> CONFIRMED (driver accepts) | REJECTED (driver declines) | CANCELLED (passenger withdraws)
- *   CONFIRMED -> CANCELLED (passenger withdraws) | COMPLETED (trip finished)
- *   REJECTED / CANCELLED / COMPLETED -> terminal
- *
- * Authorization (Sprint 9 hardening): confirm/decline/complete may only be
- * performed by the trip's driver; withdraw only by the booking's owner —
- * violations surface as HTTP 403 via SecurityException.
- *
- * Demonstrates:
- * - State Pattern (GoF Behavioral / Ch. 9): The legal transition relation is an
- *   explicit, formally-defined guard table instead of scattered if-statements.
- * - Observer Pattern: Each successful transition publishes a notification event.
- * - Robustness (Quality Attribute, Ch. 2): Illegal transitions raise a checked,
- *   descriptive IllegalStateException surfaced as HTTP 409 by the controller.
- */
+// the rules for how a booking can change state, plus the notification that goes out
+// each time it does.
+//
+//   PENDING   -> CONFIRMED (driver accepts) | REJECTED (driver declines) | CANCELLED (passenger pulls out)
+//   CONFIRMED -> CANCELLED (passenger pulls out) | COMPLETED (trip finished)
+//   the other three are final
+//
+// only the trip's driver can confirm, decline or complete. only the passenger who made
+// the booking can withdraw it. anything else throws SecurityException and comes back as a 403.
 @Service
 public class BookingLifecycleService {
 
-    /** Formal transition relation of the booking state machine. */
     private static final Map<BookingStatus, Set<BookingStatus>> LEGAL_TRANSITIONS = new EnumMap<>(BookingStatus.class);
 
     static {
@@ -68,12 +56,10 @@ public class BookingLifecycleService {
         this.notificationService = notificationService;
     }
 
-    /** Returns true if the transition from -> to is allowed by the state machine. */
     public boolean isLegalTransition(BookingStatus from, BookingStatus to) {
         return LEGAL_TRANSITIONS.getOrDefault(from, EnumSet.noneOf(BookingStatus.class)).contains(to);
     }
 
-    /** Driver accepts a pending booking. Only the trip's driver may confirm. */
     @Transactional
     public RideRequest confirm(Long rideRequestId, Long actorId) {
         requireDriverActor(rideRequestId, actorId, "confirm");
@@ -83,7 +69,6 @@ public class BookingLifecycleService {
         return request;
     }
 
-    /** Driver declines a pending booking. Only the trip's driver may decline. */
     @Transactional
     public RideRequest reject(Long rideRequestId, Long actorId) {
         requireDriverActor(rideRequestId, actorId, "decline");
@@ -93,7 +78,6 @@ public class BookingLifecycleService {
         return request;
     }
 
-    /** Passenger withdraws a pending or confirmed booking. Only its owner may. */
     @Transactional
     public RideRequest cancel(Long rideRequestId, Long actorId) {
         RideRequest request = rideRequestRepository.findById(rideRequestId)
@@ -108,13 +92,8 @@ public class BookingLifecycleService {
         return request;
     }
 
-    /**
-     * Driver marks a whole trip as completed: every CONFIRMED booking on the
-     * trip transitions to COMPLETED and each passenger is notified and invited
-     * to rate the driver.
-     *
-     * @return the number of bookings transitioned to COMPLETED
-     */
+    // driver closes the trip: every confirmed booking on it becomes completed and
+    // each passenger gets asked to rate. returns how many bookings were closed
     @Transactional
     public int completeTrip(Long tripOfferId, Long actorId) {
         TripOffer offer = tripOfferRepository.findById(tripOfferId)
@@ -142,17 +121,13 @@ public class BookingLifecycleService {
         return completed;
     }
 
-    /**
-     * Users this person is allowed to rate: only counterparts from COMPLETED
-     * bookings (FR-10 integrity — you can rate only people you actually rode with).
-     * Covers both directions: drivers of completed trips (as passenger) and
-     * passengers of completed bookings (as driver).
-     */
+    // who this person is allowed to rate: only people they actually rode with, so
+    // drivers from their completed bookings and passengers from their completed trips
     public List<User> rateableCounterparts(Long userId) {
         List<User> counterparts = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
 
-        // As passenger: drivers of trips where this user's booking is COMPLETED
+        // as a passenger: the drivers who took them
         for (RideRequest r : rideRequestRepository.findByPassengerIdAndStatus(userId, BookingStatus.COMPLETED)) {
             if (r.getTripOffer() != null && r.getTripOffer().getDriver() != null) {
                 User driver = r.getTripOffer().getDriver();
@@ -162,7 +137,7 @@ public class BookingLifecycleService {
             }
         }
 
-        // As driver: passengers whose bookings on this user's trips are COMPLETED
+        // as a driver: the passengers they carried
         for (RideRequest r : rideRequestRepository.findByTripOfferDriverIdAndStatus(userId, BookingStatus.COMPLETED)) {
             User passenger = r.getPassenger();
             if (passenger != null && !passenger.getId().equals(userId) && seen.add(passenger.getId())) {
@@ -172,10 +147,7 @@ public class BookingLifecycleService {
         return counterparts;
     }
 
-    /**
-     * Core guarded transition. Throws IllegalStateException when the requested
-     * transition violates the state machine.
-     */
+    // the one place a status actually changes. throws if the move is not allowed
     private RideRequest transition(Long rideRequestId, BookingStatus target) {
         RideRequest request = rideRequestRepository.findById(rideRequestId)
                 .orElseThrow(() -> new RuntimeException("RideRequest not found with id: " + rideRequestId));
@@ -189,7 +161,6 @@ public class BookingLifecycleService {
         return rideRequestRepository.save(request);
     }
 
-    /** Sprint 9 hardening: only the trip's driver may act on its bookings (403 otherwise). */
     private void requireDriverActor(Long rideRequestId, Long actorId, String action) {
         RideRequest request = rideRequestRepository.findById(rideRequestId)
                 .orElseThrow(() -> new RuntimeException("RideRequest not found with id: " + rideRequestId));

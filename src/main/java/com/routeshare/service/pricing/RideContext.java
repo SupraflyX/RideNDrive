@@ -5,19 +5,9 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-/**
- * RideContext encapsulates all context metadata needed by pricing policies during rule execution.
- *
- * It also answers the temporal and spatial questions the pricing rules ask ("is this a rush
- * hour?", "same destination zone?"). Both pricing paths — the platform's PricingPolicy chain
- * and the driver-composed rule set (FR-16) — consult these single definitions, so the two can
- * never disagree about when a surcharge applies.
- *
- * Demonstrates:
- * - Parameter Parameterization: Bundling diverse context factors (spatial, temporal, reputational) to pass through the Chain of Responsibility.
- * - Encapsulation: Fields are kept read-only or mutable only via structured methods.
- * - Single Point of Definition (DRY): each pricing condition is expressed exactly once.
- */
+// everything a pricing rule might need to look at, plus the questions they ask
+// ("is this rush hour?", "same destination?"). both pricing paths use these same
+// definitions so they can't drift apart
 public class RideContext {
 
     private static final LocalTime MORNING_RUSH_START = LocalTime.of(7, 0);
@@ -81,9 +71,9 @@ public class RideContext {
         return distanceKm;
     }
 
-    // ── pricing conditions (single point of definition) ──────────────
+    // the conditions the rules check
 
-    /** Weekday commuter peak: 07:00–09:00 or 17:00–19:00, Monday to Friday. */
+    // 07:00-09:00 or 17:00-19:00, monday to friday
     public boolean isRushHour() {
         if (departureTime == null) {
             return false;
@@ -97,7 +87,7 @@ public class RideContext {
                 || within(time, EVENING_RUSH_START, EVENING_RUSH_END);
     }
 
-    /** Late night: from 23:00 through 05:00 — an interval that spans midnight. */
+    // 23:00 through to 05:00, so it wraps past midnight
     public boolean isLateNight() {
         if (departureTime == null) {
             return false;
@@ -106,18 +96,17 @@ public class RideContext {
         return !time.isBefore(NIGHT_START) || !time.isAfter(NIGHT_END);
     }
 
-    /** True when the passenger is heading to the driver's own destination. */
     public boolean isSameDestinationZone() {
         return passengerDestination != null && driverDestination != null
                 && passengerDestination.trim().equalsIgnoreCase(driverDestination.trim());
     }
 
-    /** Incentive mechanism: the tiers that a loyalty discount rewards. */
+    // which tiers get the loyalty discount
     public boolean isLoyaltyTier() {
         return passengerTier == IncentiveTier.GOLD || passengerTier == IncentiveTier.PREMIUM_PRICING;
     }
 
-    /** Inclusive on both ends, matching the published surcharge windows. */
+    // both ends count as inside the window
     private static boolean within(LocalTime time, LocalTime start, LocalTime end) {
         return !time.isBefore(start) && !time.isAfter(end);
     }

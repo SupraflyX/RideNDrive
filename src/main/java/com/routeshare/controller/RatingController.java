@@ -7,12 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-/**
- * RatingController exposes REST endpoints for managing Ratings.
- *
- * Demonstrates:
- * - MVC Architectural Pattern: Translates web requests for submitting feedback to the RatingService.
- */
 @RestController
 @RequestMapping("/api/ratings")
 public class RatingController {

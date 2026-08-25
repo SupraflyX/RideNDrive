@@ -4,16 +4,7 @@ import com.routeshare.model.enums.PricingRuleType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
-/**
- * DriverPricingRule — one rule of a driver's self-composed pricing policy (FR-16).
- *
- * Demonstrates:
- * - Rule/policy customizability (project guideline): the driver owns her fare
- *   policy — rates, surcharges, discounts and the loyalty incentive — instead
- *   of tuning parameters of a platform formula.
- * - Interpreter-style evaluation: PricingEngine walks the driver's ordered rule
- *   set inside the existing Chain of Responsibility flow.
- */
+// one rule in a driver's own pricing policy
 @Entity
 @Table(name = "driver_pricing_rules")
 public class DriverPricingRule {
@@ -32,7 +23,7 @@ public class DriverPricingRule {
     @Column(nullable = false)
     private PricingRuleType type;
 
-    /** The driver's own value: €/km, %, or flat € depending on the rule type. */
+    // what this means depends on the rule type: eur/km, a percentage, or a flat eur amount
     @Column(name = "rule_value", nullable = false)
     private double value;
 

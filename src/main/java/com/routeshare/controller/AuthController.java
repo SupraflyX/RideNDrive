@@ -13,15 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/**
- * AuthController manages user authentication and registration workflows.
- *
- * Demonstrates:
- * - Security (NFR-2): salted BCrypt hashing; credential material never leaves the server.
- * - Repository derived queries: username uniqueness is answered by the database
- *   (existsByNameIgnoreCase) instead of scanning all users in memory.
- * - DRY: shared helpers for hashing and profile responses across the three flows.
- */
+// login and registration. passwords are bcrypt hashed here and never sent back out
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -35,7 +27,6 @@ public class AuthController {
         this.vehicleRepository = vehicleRepository;
     }
 
-    /** Authenticates a user by name and password. */
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> payload) {
         String name = payload.get("name");
@@ -62,7 +53,6 @@ public class AuthController {
         return ResponseEntity.ok(profileResponse(user));
     }
 
-    /** Registers a passenger. */
     @PostMapping("/register-passenger")
     public ResponseEntity<Map<String, Object>> registerPassenger(@RequestBody Map<String, String> payload) {
         String name = payload.get("name");
@@ -80,7 +70,6 @@ public class AuthController {
         return ResponseEntity.ok(profileResponse(user));
     }
 
-    /** Registers a driver and their vehicle information. */
     @PostMapping("/register-driver")
     public ResponseEntity<Map<String, Object>> registerDriver(@RequestBody Map<String, String> payload) {
         String name = payload.get("name");
@@ -115,7 +104,6 @@ public class AuthController {
         return ResponseEntity.ok(profileResponse(user));
     }
 
-    // ── shared helpers ───────────────────────────────────────────────
 
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
@@ -129,7 +117,7 @@ public class AuthController {
         return ResponseEntity.badRequest().body(Map.of("error", message));
     }
 
-    /** The public profile shape returned by every auth flow — no credential material. */
+    // what every auth call returns. no password, hashed or otherwise
     private static Map<String, Object> profileResponse(User user) {
         return Map.of(
                 "id", user.getId(),

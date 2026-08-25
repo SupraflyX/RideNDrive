@@ -1,20 +1,9 @@
 package com.routeshare.model.enums;
 
-/**
- * TravelRuleType — the vocabulary of the driver-defined travel policy engine (FR-15).
- *
- * Each type is a predicate evaluated against a candidate passenger/request.
- * Rules are composed per driver (Specification pattern): the driver owns the
- * policy, the platform only interprets it — this is rule/policy customization,
- * not parameter tuning.
- */
+// the rules a driver can use to filter who rides with them.
+// each one is a check against a candidate request
 public enum TravelRuleType {
-    /** Candidate's reputation score must be >= numericValue (e.g. 4.0). */
-    MIN_PASSENGER_REPUTATION,
-
-    /** Candidate's destination must match the trip destination (same zone). */
-    SAME_DESTINATION_ONLY,
-
-    /** Candidate must not carry LARGE luggage. */
-    NO_LARGE_LUGGAGE
+    MIN_PASSENGER_REPUTATION, // passenger score must be >= the driver's number
+    SAME_DESTINATION_ONLY,    // passenger must be going to the trip destination
+    NO_LARGE_LUGGAGE          // no LARGE bags
 }

@@ -15,17 +15,10 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-/**
- * DemoDataSeeder populates an EMPTY database with a living demo world so the
- * application never presents as a ghost town: personas with earned reputations,
- * upcoming and completed trips, bookings in every lifecycle state, ratings,
- * notifications, driver policies and payment history.
- *
- * Safety: runs only outside the test profile AND only when no users exist —
- * it can never touch real data or the CI suite. All demo accounts share the
- * password "demo123" (listed in the README) so any persona can be driven live
- * at the examination.
- */
+// fills an empty database with something to look at: a few drivers and passengers
+// with history, trips, bookings in each state, ratings, policies and payments.
+// only runs when there are no users at all, so it can never touch real data.
+// every demo account uses the password "demo123"
 @Component
 @Profile("!test")
 public class DemoDataSeeder implements CommandLineRunner {
@@ -69,7 +62,6 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         String hash = BCrypt.hashpw(DEMO_PASSWORD, BCrypt.gensalt());
 
-        // ── People ──────────────────────────────────────────────────
         User giulia = driver("Giulia", hash, 4.72, IncentiveTier.GOLD);
         User marco  = driver("Marco", hash, 4.15, IncentiveTier.SILVER);
         User piera  = driver("Piera", hash, 4.88, IncentiveTier.PREMIUM_PRICING);
@@ -82,7 +74,6 @@ public class DemoDataSeeder implements CommandLineRunner {
         vehicles.save(new Vehicle(marco, 4, "Volkswagen", "Golf"));
         vehicles.save(new Vehicle(piera, 2, "Mini", "Cooper"));
 
-        // ── Driver policies (FR-15 / FR-16) ─────────────────────────
         travelRules.save(new DriverTravelRule(giulia, TravelRuleType.MIN_PASSENGER_REPUTATION, 4.0, 10));
         travelRules.save(new DriverTravelRule(giulia, TravelRuleType.NO_LARGE_LUGGAGE, null, 20));
         travelRules.save(new DriverTravelRule(piera, TravelRuleType.SAME_DESTINATION_ONLY, null, 10));
@@ -92,30 +83,28 @@ public class DemoDataSeeder implements CommandLineRunner {
         pricingRules.save(new DriverPricingRule(piera, PricingRuleType.BASE_RATE_PER_KM, 0.60, 10));
         pricingRules.save(new DriverPricingRule(piera, PricingRuleType.SAME_DESTINATION_DISCOUNT_PCT, 12, 20));
 
-        // ── Upcoming trips ───────────────────────────────────────────
         LocalDateTime tomorrow = LocalDateTime.now().plusDays(1).with(LocalTime.of(7, 45));
         TripOffer t1 = trips.save(new TripOffer(giulia, "Messina", "Catania", tomorrow, 3, 30));
         TripOffer t2 = trips.save(new TripOffer(marco, "Messina", "Taormina", tomorrow.plusMinutes(45), 2, 25));
         TripOffer t3 = trips.save(new TripOffer(piera, "Catania", "Siracusa", LocalDateTime.now().plusDays(2).with(LocalTime.of(17, 30)), 2, 20));
         trips.save(new TripOffer(marco, "Palermo", "Messina", LocalDateTime.now().plusDays(3).with(LocalTime.of(9, 0)), 3, 40));
 
-        // Bookings in various lifecycle states
         RideRequest pendingOnT1 = booking(chiara, t1, "Messina", "Catania", tomorrow, BookingStatus.PENDING, LuggageSize.SMALL);
-        RideRequest confirmedOnT1 = booking(alice, t1, "Messina Nord", "Catania", tomorrow, BookingStatus.CONFIRMED, LuggageSize.NONE);
+        RideRequest confirmedOnT1 = booking(alice, t1, "Taormina", "Catania", tomorrow, BookingStatus.CONFIRMED, LuggageSize.NONE);
         booking(davide, t2, "Messina", "Taormina", tomorrow.plusMinutes(45), BookingStatus.CONFIRMED, LuggageSize.NONE);
         booking(bruno, t3, "Catania", "Siracusa", t3.getDepartureTime(), BookingStatus.REJECTED, LuggageSize.LARGE);
 
-        // Open, unassigned requests (ranked in Find Passengers)
+        // open requests with no trip yet
         openRequest(davide, "Messina", "Catania", tomorrow, LuggageSize.NONE);
-        openRequest(bruno, "Villafranca", "Catania", tomorrow, LuggageSize.SMALL);
+        openRequest(bruno, "Messina", "Catania", tomorrow, LuggageSize.SMALL);
 
-        // ── A completed trip yesterday: history, payments, ratings ──
+        // a finished trip from yesterday, so there is some history to show
         LocalDateTime yesterday = LocalDateTime.now().minusDays(1).with(LocalTime.of(8, 0));
         TripOffer done = new TripOffer(giulia, "Messina", "Catania", LocalDateTime.now().plusMinutes(5), 2, 30);
         done = trips.save(done);
         RideRequest doneAlice = completedBooking(alice, done, "Messina", "Catania");
-        RideRequest doneChiara = completedBooking(chiara, done, "Messina Sud", "Catania");
-        // Backdate the historical rows (bean validation guards API input, not curated history)
+        RideRequest doneChiara = completedBooking(chiara, done, "Taormina", "Catania");
+        // push these into the past with raw sql, since validation blocks past dates
         jdbc.update("UPDATE trip_offers SET departure_time = ? WHERE id = ?", yesterday, done.getId());
         jdbc.update("UPDATE ride_requests SET pickup_time_window_start = ?, pickup_time_window_end = ? WHERE id = ?",
                 yesterday.minusMinutes(30), yesterday.plusHours(2), doneAlice.getId());
@@ -123,7 +112,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 yesterday.minusMinutes(30), yesterday.plusHours(2), doneChiara.getId());
 
         ledger.record(alice, giulia, 7.40, PaymentTransaction.Status.COMPLETED, "Messina → Catania", doneAlice.getId());
-        ledger.record(chiara, giulia, 8.15, PaymentTransaction.Status.COMPLETED, "Messina Sud → Catania", doneChiara.getId());
+        ledger.record(chiara, giulia, 8.15, PaymentTransaction.Status.COMPLETED, "Taormina → Catania", doneChiara.getId());
         ledger.record(davide, marco, 6.30, PaymentTransaction.Status.COMPLETED, "Messina → Taormina", null);
 
         ratings.save(new Rating(alice, giulia, 5, "DRIVER_RATED"));
@@ -132,14 +121,13 @@ public class DemoDataSeeder implements CommandLineRunner {
         ratings.save(new Rating(giulia, chiara, 5, "PASSENGER_RATED"));
 
         notifications.save(new Notification(giulia, NotificationType.BOOKING, "Chiara booked a seat on your trip Messina -> Catania (payment on hold)."));
-        notifications.save(new Notification(alice, NotificationType.BOOKING, "Your booking from Messina Nord to Catania was confirmed by the driver."));
+        notifications.save(new Notification(alice, NotificationType.BOOKING, "Your booking from Taormina to Catania was confirmed by the driver."));
         notifications.save(new Notification(giulia, NotificationType.RATING, "You received a new 5-star rating."));
         notifications.save(new Notification(chiara, NotificationType.BOOKING, "Your trip to Catania is complete. Please rate your driver!"));
 
         log.info("Demo world seeded: 7 users, 3 vehicles, 5 trips, bookings in every state, payments, ratings, notifications, driver policies.");
     }
 
-    // ── helpers ──────────────────────────────────────────────────────
     private User driver(String name, String hash, double reputation, IncentiveTier tier) {
         User u = new User(name, UserRole.DRIVER, hash);
         u.setReputationScore(reputation);
@@ -169,7 +157,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         requests.save(r);
     }
 
-    /** Persist validation-safe, then the caller backdates via JDBC. */
+    // save with a valid date first, caller moves it back afterwards
     private RideRequest completedBooking(User pax, TripOffer trip, String origin, String dest) {
         RideRequest r = new RideRequest(pax, origin, dest,
                 LocalDateTime.now().plusMinutes(5), LocalDateTime.now().plusHours(2));

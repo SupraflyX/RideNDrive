@@ -11,21 +11,15 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * PricingEngineTest validates the Chain of Responsibility pricing engine logic.
- *
- * Demonstrates:
- * - Strategy & Chain of Responsibility verification (GoF patterns / Ch. 9).
- * - Equivalence Partitioning: Verifying behavior across time periods (rush-hour, late-night, normal-hours)
- *   and spatial contexts (matching vs. mismatching destination zones).
- */
+// checks the pricing chain across the different time and place cases:
+// normal hours, rush hour, late night, same destination, and two rules at once
 public class PricingEngineTest {
 
     private PricingEngine pricingEngine;
 
     @BeforeEach
     public void setUp() {
-        // Instantiate the policy strategies and initialize the engine chain manually for clean unit isolation
+        // build the chain by hand so the test does not depend on spring
         PricingPolicy rushHour = new RushHourSurchargePolicy();
         PricingPolicy lateNight = new LateNightFeePolicy();
         PricingPolicy sameZone = new SameDestinationZoneDiscount();

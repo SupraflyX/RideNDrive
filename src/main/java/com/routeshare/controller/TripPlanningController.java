@@ -28,6 +28,7 @@ import com.routeshare.service.pricing.RideContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,20 +44,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * TripPlanningController orchestrates the end-to-end carpool workflow connecting database entities,
- * routing services, driver policies, pricing strategy chains, and payment processing.
- *
- * Note: recovered from bytecode after a disk failure; the behaviour is the
- * compiled Sprint 9 behaviour, since re-expressed in idiomatic Java.
- */
 @RestController
 @RequestMapping("/api/trips")
 public class TripPlanningController {
 
     private static final Logger log = LoggerFactory.getLogger(TripPlanningController.class);
 
-    /** Default pickup window when the caller does not supply one: ±12h around departure. */
+    // if the caller gives no pickup window, assume 12h either side of departure
     private static final long DEFAULT_WINDOW_HOURS = 12L;
 
     private final TripOfferService tripOfferService;
@@ -99,9 +93,7 @@ public class TripPlanningController {
         this.paymentLedgerService = paymentLedgerService;
     }
 
-    // ── shared helpers ───────────────────────────────────────────────
 
-    /** Active bookings (PENDING or CONFIRMED) currently attached to an offer. */
     private static List<RideRequest> activeBookings(TripOffer offer) {
         List<RideRequest> active = new ArrayList<>();
         if (offer.getPassengers() != null) {
@@ -115,21 +107,16 @@ public class TripPlanningController {
         return active;
     }
 
-    /**
-     * A plan serves every request only if it is feasible AND its sequence contains a
-     * pickup and a dropoff for each one, plus the driver's own origin and destination.
-     */
+    // did the plan actually fit everyone in? needs a pickup and a dropoff each, plus
+    // the driver's own two ends
     private static boolean servesAll(StopSequenceResult plan, int requestCount) {
         return plan.isFeasible()
                 && plan.getSequence() != null
                 && plan.getSequence().size() >= requestCount * 2 + 2;
     }
 
-    /**
-     * Passenger-perspective metrics (FR-14): the searcher cares about THEIR leg,
-     * not the driver's whole trip. Walks the planned stops from the searcher's
-     * PICKUP to their DROPOFF, summing leg times (intermediate stops included).
-     */
+    // what the trip looks like to the person searching: they care about their own leg,
+    // not the driver's whole route. walks the stops from their pickup to their dropoff
     private Map<String, Object> yourRideMetrics(List<PlannedStop> stops, String passengerName,
                                                 double directDistanceKm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
@@ -166,10 +153,9 @@ public class TripPlanningController {
 
     // ── endpoints ────────────────────────────────────────────────────
 
-    /**
-     * FR-14: feasibility-aware search - every candidate offer is vetted by the driver's
-     * travel policy (FR-15) and planned TOGETHER with its active bookings (overbooking-aware).
-     */
+    // finds trips that could actually take this passenger. each candidate is checked
+    // against the driver's rules first, then planned together with the bookings it
+    // already has, so we never offer a seat that doesn't fit
     @PostMapping("/search-matches")
     public ResponseEntity<?> searchMatchingTrips(@RequestBody Map<String, String> payload) {
         String origin = payload.get("origin");
@@ -192,6 +178,11 @@ public class TripPlanningController {
             double passengerDistance = mappingService.getDistanceKm(origin, destination);
             for (TripOffer offer : tripOfferService.findAll()) {
                 if (!offer.getDepartureTime().toLocalDate().equals(searchDate)) {
+                    continue;
+                }
+                // a trip that has already left is no use to anyone. filtering here rather
+                // than in the browser keeps the result count and the list agreeing
+                if (offer.getDepartureTime().isBefore(LocalDateTime.now())) {
                     continue;
                 }
                 List<Vehicle> vehicles = vehicleService.findByDriverId(offer.getDriver().getId());
@@ -243,13 +234,14 @@ public class TripPlanningController {
         } catch (MapApiException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Google Maps API Error: " + e.getMessage());
         }
+        // soonest first, so the list has a defined order instead of whatever the
+        // database happened to hand back
+        matchingResults.sort(Comparator.comparing(m -> LocalDateTime.parse((String) m.get("departureTime"))));
         return ResponseEntity.ok(matchingResults);
     }
 
-    /**
-     * FR-8 booking flow: driver travel-policy veto (FR-15) -> persist -> DFS with ALL active
-     * bookings (overbooking fix D4) -> driver-rule pricing (FR-16) -> payment -> notify.
-     */
+    // book a seat: check the driver's rules, save the request, re-plan the whole trip
+    // with it included, price it, take the payment, tell the driver
     @PostMapping("/{tripOfferId}/book-passenger")
     public ResponseEntity<?> bookPassengerOnTrip(@PathVariable Long tripOfferId,
                                                  @RequestBody Map<String, String> payload) {
@@ -324,7 +316,7 @@ public class TripPlanningController {
             rideRequest.setTripOffer(offer);
             rideRequest = rideRequestService.save(rideRequest);
 
-            // Re-plan over ALL active bookings, not just this one (overbooking fix D4).
+            // has to re-plan over every active booking, not just this one, or we overbook
             List<RideRequest> requests = new ArrayList<>(activeBookings(offer));
             RideRequest saved = rideRequest;
             boolean alreadyIncluded = requests.stream()
@@ -355,7 +347,7 @@ public class TripPlanningController {
                     && paymentService.processPayment(passenger.getId(), driver.getId(), pricingResult.getFinalFare());
             boolean bookingSuccessful = identityVerified && transactionCleared;
 
-            // Ledger (FR-8): persist a referenced record of what the gateway reported
+            // keep our own record of what the gateway said
             PaymentTransaction receipt = paymentLedgerService.record(
                     passenger, driver, pricingResult.getFinalFare(),
                     bookingSuccessful ? PaymentTransaction.Status.COMPLETED : PaymentTransaction.Status.HELD,
@@ -392,10 +384,8 @@ public class TripPlanningController {
         }
     }
 
-    /**
-     * Driver cockpit (FR-5/FR-7): the CURRENT route of a trip — a side-effect-free
-     * re-plan over all active bookings, with metrics and map-ready waypoints.
-     */
+    // what a driver's route looks like right now. re-plans over the active bookings
+    // without saving anything, and returns waypoints the map can draw
     @GetMapping("/{tripOfferId}/route")
     public ResponseEntity<?> currentRoute(@PathVariable Long tripOfferId) {
         TripOffer offer = tripOfferService.findById(tripOfferId).orElse(null);
@@ -431,7 +421,6 @@ public class TripPlanningController {
         }
     }
 
-    /** Checks whether a driver's existing offers can accommodate a specific ride request. */
     @PostMapping("/check-existing-matches")
     public ResponseEntity<?> checkExistingMatches(@RequestBody Map<String, String> payload) {
         String driverIdStr = payload.get("driverId");

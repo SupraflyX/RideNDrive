@@ -9,20 +9,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-/**
- * BookingController exposes the booking lifecycle state machine over REST.
- *
- * Endpoints (FR-12 lifecycle, actor-authorized since Sprint 9):
- *   POST /api/bookings/{id}/confirm?actorId=   driver accepts a pending booking
- *   POST /api/bookings/{id}/reject?actorId=    driver declines a pending booking
- *   POST /api/bookings/{id}/cancel?actorId=    passenger withdraws a booking
- *   POST /api/bookings/trip/{tripOfferId}/complete?actorId=   driver closes a trip
- *   GET  /api/bookings/rateable/{userId}       rating eligibility (FR-10)
- *
- * Illegal transitions surface as HTTP 409 CONFLICT; unauthorized actors as
- * HTTP 403 FORBIDDEN — making the state machine observable and testable from
- * the API boundary.
- */
+// the booking lifecycle over http:
+//   POST /api/bookings/{id}/confirm?actorId=  driver accepts
+//   POST /api/bookings/{id}/reject?actorId=   driver declines
+//   POST /api/bookings/{id}/cancel?actorId=   passenger withdraws
+//   POST /api/bookings/trip/{id}/complete?actorId=  driver closes the trip
+//   GET  /api/bookings/rateable/{userId}      who this user is allowed to rate
+//
+// a move that isn't allowed comes back 409, the wrong person acting comes back 403
 @RestController
 @RequestMapping("/api/bookings")
 public class BookingController {
@@ -49,10 +43,6 @@ public class BookingController {
         return executeTransition(() -> bookingLifecycleService.cancel(id, actorId));
     }
 
-    /**
-     * FR-10 integrity: the users this person may rate — counterparts from
-     * COMPLETED bookings only.
-     */
     @GetMapping("/rateable/{userId}")
     public ResponseEntity<?> rateableCounterparts(@PathVariable Long userId) {
         return ResponseEntity.ok(bookingLifecycleService.rateableCounterparts(userId));
@@ -73,7 +63,7 @@ public class BookingController {
         }
     }
 
-    /** Shared happy-path/error handling for single-booking transitions. */
+    // same success and error handling for all three single-booking moves
     private ResponseEntity<?> executeTransition(TransitionAction action) {
         try {
             RideRequest updated = action.run();
