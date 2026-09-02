@@ -67,8 +67,8 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    // deleting an account has to clear everything pointing at it first, all in one
-    // transaction so we never end up half deleted
+    /* deleting an account has to clear everything pointing at it first, all in one
+       transaction so we never end up half deleted */
     @Transactional
     public void delete(Long id) {
         paymentTransactionRepository.deleteAll(paymentTransactionRepository.findByPayerIdOrPayeeId(id, id));
@@ -76,9 +76,9 @@ public class UserService {
         ratingRepository.deleteAll(ratingRepository.findByReviewerIdOrRevieweeId(id, id));
         vehicleRepository.deleteAll(vehicleRepository.findByDriverId(id));
         tripOfferRepository.deleteAll(tripOfferRepository.findByDriverId(id));
-        // has to be a bulk delete. TripOffer cascades PERSIST to its bookings, so removing
-        // them one at a time lets a managed trip re-save them on flush and the final user
-        // delete then fails on a foreign key. flush/clear afterwards keep things in sync
+        /* has to be a bulk delete. TripOffer cascades PERSIST to its bookings, so removing
+           them one at a time lets a managed trip re-save them on flush and the final user
+           delete then fails on a foreign key. flush/clear afterwards keep things in sync */
         rideRequestRepository.deleteBulkByPassengerId(id);
         userRepository.deleteById(id);
     }

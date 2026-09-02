@@ -1,0 +1,19 @@
+# only src/ and pom.xml are needed to build the image. keeping everything else
+# out of the build context makes the build faster and stops stray files ending
+# up in an image layer
+target/
+.git/
+.github/
+.claude/
+data/
+docs/
+report_artifacts/
+diagram_pdfs/
+diagram_svgs/
+*.md
+*.py
+.env
+.env.example
+.DS_Store
+.idea/
+.vscode/

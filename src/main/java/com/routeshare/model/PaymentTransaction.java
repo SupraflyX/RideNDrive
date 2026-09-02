@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
-// one row of the payment ledger. the gateway itself is simulated, this is our own
-// record of what it reported so fares have a reference that sticks around
+/* one row of the payment ledger. the gateway itself is simulated, this is our own
+   record of what it reported so fares have a reference that sticks around */
 @Entity
 @Table(name = "payment_transactions")
 public class PaymentTransaction {

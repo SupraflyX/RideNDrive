@@ -16,12 +16,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-// handles the rules a driver sets about who they'll take.
-//
-// two jobs. first, checking a candidate against every rule the driver has switched on:
-// one broken rule is enough to reject them, and we collect all the violations so the
-// driver can see why. second, putting the ones that pass in order, best first, using
-// reputation, tier, whether they're going to the same place, and how much luggage.
+/* the rules a driver sets about who they'll take. checks a candidate against every rule the
+   driver switched on (one break is enough to reject, but all violations are collected so
+   the driver can see why), then ranks the ones that pass */
 @Service
 public class TravelPolicyService {
 
@@ -95,11 +92,11 @@ public class TravelPolicyService {
         return new PolicyDecision(violations.isEmpty(), violations);
     }
 
-    // scores the candidates that got through, highest first:
-    //   reputation  score * 10                                  (0-50)
-    //   tier        STANDARD 0 / SILVER 5 / GOLD 10 / PREMIUM 15
-    //   same place  8 if they're going where the driver is going
-    //   luggage     none +3 / small +1 / large +0
+    /* scores the candidates that got through, highest first:
+       reputation  score * 10                                  (0-50)
+       tier        STANDARD 0 / SILVER 5 / GOLD 10 / PREMIUM 15
+       same place  8 if they're going where the driver is going
+       luggage     none +3 / small +1 / large +0 */
     public List<RankedCandidate> rankCandidates(Long driverId, TripOffer offer, List<RideRequest> candidates) {
         List<RankedCandidate> ranked = new ArrayList<>();
 

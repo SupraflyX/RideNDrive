@@ -39,10 +39,9 @@ public class TripOffer {
     @Column(nullable = false)
     private int maxDetourMinutes;
 
-    // EAGER because routing, search and serialisation all need the bookings straight away,
-    // and a trip only ever has a few. careful: the PERSIST cascade means a managed TripOffer
-    // re-saves its bookings on flush, so delete them in bulk
-    // (RideRequestRepository.deleteBulkByPassengerId) rather than one at a time
+    /* EAGER because routing, search and serialisation all need the bookings straight away and
+       a trip only has a few. the PERSIST cascade means a managed TripOffer re-saves its
+       bookings on flush, so delete them in bulk (RideRequestRepository.deleteBulkByPassengerId) */
     @OneToMany(mappedBy = "tripOffer", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
     private java.util.List<RideRequest> passengers = new java.util.ArrayList<>();
 

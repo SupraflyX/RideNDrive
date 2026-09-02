@@ -10,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-// everything that creates an in-app notification goes through here, so if we ever
-// want email or push as well there's only one place to change
+/* everything that creates an in-app notification goes through here, so if we ever
+   want email or push as well there's only one place to change */
 @Service
 public class NotificationService {
 

@@ -11,8 +11,8 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// checks the pricing chain across the different time and place cases:
-// normal hours, rush hour, late night, same destination, and two rules at once
+/* checks the pricing chain across the different time and place cases:
+   normal hours, rush hour, late night, same destination, and two rules at once */
 public class PricingEngineTest {
 
     private PricingEngine pricingEngine;
@@ -29,8 +29,8 @@ public class PricingEngineTest {
 
     @Test
     public void testNoPoliciesApply() {
-        // Tuesday at 12:00 PM (noon) - Not rush hour, not late night
-        // Passenger goes ZoneC -> ZoneD, Driver goes ZoneA -> ZoneB (different destinations)
+        /* Tuesday at 12:00 PM (noon) - Not rush hour, not late night
+           Passenger goes ZoneC -> ZoneD, Driver goes ZoneA -> ZoneB (different destinations) */
         RideContext context = new RideContext(
                 LocalDateTime.of(2026, 6, 2, 12, 0), // Tuesday
                 "ZoneC", "ZoneD",
@@ -60,8 +60,8 @@ public class PricingEngineTest {
 
         PricingResult result = pricingEngine.calculateFare(context);
 
-        // Base fare: $7.00
-        // Rush hour: +25% -> $7.00 * 1.25 = $8.75
+        /* Base fare: $7.00
+           Rush hour: +25% -> $7.00 * 1.25 = $8.75 */
         assertEquals(7.00, result.getBaseFare());
         assertEquals(8.75, result.getFinalFare());
         assertEquals(1, result.getAppliedPolicies().size());
@@ -81,8 +81,8 @@ public class PricingEngineTest {
 
         PricingResult result = pricingEngine.calculateFare(context);
 
-        // Base: $7.00
-        // Night surcharge: +30% -> $7.00 * 1.30 = $9.10
+        /* Base: $7.00
+           Night surcharge: +30% -> $7.00 * 1.30 = $9.10 */
         assertEquals(7.00, result.getBaseFare());
         assertEquals(9.10, result.getFinalFare());
         assertEquals(1, result.getAppliedPolicies().size());
@@ -91,8 +91,8 @@ public class PricingEngineTest {
 
     @Test
     public void testSameZoneDiscount() {
-        // Tuesday at 12:00 PM (No time surcharges)
-        // Destinations are identical ("ZoneB")
+        /* Tuesday at 12:00 PM (No time surcharges)
+           Destinations are identical ("ZoneB") */
         RideContext context = new RideContext(
                 LocalDateTime.of(2026, 6, 2, 12, 0),
                 "ZoneC", "ZoneB",
@@ -103,8 +103,8 @@ public class PricingEngineTest {
 
         PricingResult result = pricingEngine.calculateFare(context);
 
-        // Base: $7.00
-        // Same destination: -15% -> $7.00 * 0.85 = $5.95
+        /* Base: $7.00
+           Same destination: -15% -> $7.00 * 0.85 = $5.95 */
         assertEquals(7.00, result.getBaseFare());
         assertEquals(5.95, result.getFinalFare());
         assertEquals(1, result.getAppliedPolicies().size());
@@ -113,8 +113,8 @@ public class PricingEngineTest {
 
     @Test
     public void testMultiplePoliciesStack() {
-        // Weekday morning rush hour AND same destination zone discount
-        // Tuesday at 8:00 AM
+        /* Weekday morning rush hour AND same destination zone discount
+           Tuesday at 8:00 AM */
         RideContext context = new RideContext(
                 LocalDateTime.of(2026, 6, 2, 8, 0),
                 "ZoneC", "ZoneB",
@@ -125,9 +125,9 @@ public class PricingEngineTest {
 
         PricingResult result = pricingEngine.calculateFare(context);
 
-        // Base: $7.00
-        // 1. Rush Hour (+25%): $7.00 * 1.25 = $8.75 (Priority 10)
-        // 2. Same Zone (-15%): $8.75 * 0.85 = $7.4375 -> rounded to $7.44 (Priority 30)
+        /* Base: $7.00
+           1. Rush Hour (+25%): $7.00 * 1.25 = $8.75 (Priority 10)
+           2. Same Zone (-15%): $8.75 * 0.85 = $7.4375 -> rounded to $7.44 (Priority 30) */
         assertEquals(7.00, result.getBaseFare());
         assertEquals(7.44, result.getFinalFare());
         assertEquals(2, result.getAppliedPolicies().size());

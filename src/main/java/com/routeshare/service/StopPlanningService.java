@@ -19,18 +19,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-// works out what order a driver should make their stops in.
-//
-// every ride request becomes two stops, a pickup and a dropoff. we try orderings
-// depth-first and keep the best one we find. five checks cut branches off early:
-//   1. can't drop someone off before we've picked them up
-//   2. can't fit more people in the car than there are seats
-//   3. can't make more pickups than the driver asked for
-//   4. can't turn up after a passenger's pickup window has closed
-//   5. can't blow the driver's detour budget
-//
-// worst case that's O((2n)!) for n requests, since it's every ordering of 2n stops.
-// in practice the five checks kill most branches long before it gets that far.
+/* works out what order a driver should make their stops in.
+
+   every ride request becomes two stops, a pickup and a dropoff. we try orderings
+   depth-first and keep the best one. five checks cut branches off early:
+     1. can't drop someone off before we've picked them up
+     2. can't fit more people in the car than there are seats
+     3. can't make more pickups than the driver asked for
+     4. can't turn up after a passenger's pickup window has closed
+     5. can't blow the driver's detour budget
+
+   worst case O((2n)!) for n requests, but the checks kill most branches long before that */
 @Service
 public class StopPlanningService {
 
@@ -111,16 +110,13 @@ public class StopPlanningService {
         }
     }
 
-    // caches leg lookups for one planRoute call, and counts its own hits.
-    //
-    // the search asks for the same (from, to) pairs over and over. with the offline
-    // approximation that's just wasted work, but with a real maps key every repeat is
-    // an http call, which is the difference between finishing and timing out. caching
-    // per call also means the search compares all its options against the same numbers.
+    /* caches leg lookups for one planRoute call and counts its own hits. the search asks for
+       the same (from, to) pairs repeatedly, and with a real maps key every repeat is an http
+       call. caching per call also means all options get compared against the same numbers */
     private static final class LegCache {
         private final MappingService delegate;
-        // the key is the pair itself rather than a joined string, so a place name
-        // containing the separator can never look like a different leg
+        /* the key is the pair itself rather than a joined string, so a place name
+           containing the separator can never look like a different leg */
         private final Map<List<String>, Integer> times = new HashMap<>();
         private final Map<List<String>, Double> distances = new HashMap<>();
         private long lookups;
@@ -160,10 +156,9 @@ public class StopPlanningService {
         }
     }
 
-    // one run of the search. holds the things that stay the same all the way down
-    // (the trip, the car, the direct time, the leg cache) so they don't have to be
-    // handed to every recursive call, plus the best route found so far.
-    // built fresh per planRoute call, so two drivers planning at once never collide.
+    /* one run of the search. holds what stays the same all the way down (trip, car, direct
+       time, leg cache) so it isn't passed to every recursive call, plus the best route so far.
+       built fresh per planRoute call, so two drivers planning at once never collide */
     private static final class Planner {
 
         private final TripOffer offer;
@@ -203,9 +198,9 @@ public class StopPlanningService {
             int totalSequenceTime = (int) minutesElapsed + timeToDestination;
             int detour = totalSequenceTime - directTime;
 
-            // nobody still in the car means everyone we picked up has been dropped off again.
-            // currentPassengers already counts that: +1 per pickup, -1 per dropoff, and check 1
-            // below stops a dropoff ever happening before its pickup
+            /* nobody still in the car means everyone we picked up has been dropped off again.
+               currentPassengers already counts that: +1 per pickup, -1 per dropoff, and check 1
+               below stops a dropoff ever happening before its pickup */
             boolean allDroppedOff = currentPassengers == 0;
 
             if (allDroppedOff && !currentSequence.isEmpty() && detour <= offer.getMaxDetourMinutes()) {
@@ -267,8 +262,8 @@ public class StopPlanningService {
                     }
                 }
 
-                // 5. even going straight to the destination from the next stop would already
-                // blow the detour budget, so nothing below this branch can work either
+                /* 5. even going straight to the destination from the next stop would already
+                   blow the detour budget, so nothing below this branch can work either */
                 int timeToDestFromNext = legs.travelTimeMinutes(nextStop.getLocation(), offer.getDestination());
                 int detourLowerBound = (int) minutesElapsed + travelTime + timeToDestFromNext - directTime;
                 if (detourLowerBound > offer.getMaxDetourMinutes()) {

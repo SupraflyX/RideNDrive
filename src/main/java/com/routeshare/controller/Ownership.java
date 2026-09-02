@@ -1,15 +1,12 @@
 package com.routeshare.controller;
 
-// the "you can only change your own stuff" check, in one place so every endpoint
-// does it the same way. the caller says who they are with an actorId parameter, and
-// a failed check throws SecurityException, which comes back as a 403.
-//
-// worth being clear about what this is not: it's ownership, not authentication.
-// nothing here proves the caller really is the actorId they claim, so a client can
-// still just send someone else's id. fixing that needs real login sessions or tokens
-// checked on the server, which is its own job. what this does buy is that when that
-// happens, only the way actorId is obtained has to change, in one file, instead of
-// adding the whole idea of an owner to a dozen endpoints.
+/* the "you can only change your own stuff" check, in one place so every endpoint does it
+   the same way. the caller says who they are with actorId, and a failed check throws
+   SecurityException, which comes back as a 403.
+
+   this is ownership, not authentication: nothing here proves the caller really is the
+   actorId they claim. real sessions or tokens would fix that, and because the check lives
+   in one file, only this would have to change. */
 final class Ownership {
 
     private Ownership() {

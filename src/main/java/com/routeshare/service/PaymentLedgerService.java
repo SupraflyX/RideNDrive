@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-// our own record of every payment. PaymentService is the pretend gateway, this is
-// what we store afterwards so receipts, statements and driver earnings have something
-// permanent to read from
+/* our own record of every payment. PaymentService is the pretend gateway, this is
+   what we store afterwards so receipts, statements and driver earnings have something
+   permanent to read from */
 @Service
 public class PaymentLedgerService {
 

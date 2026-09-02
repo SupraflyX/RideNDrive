@@ -11,15 +11,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 
-// turns exceptions into json error responses, so every failure comes back the same
-// shape ({"error": "..."}) instead of some being json and some plain text
+/* turns exceptions into json error responses, so every failure comes back the same
+   shape ({"error": "..."}) instead of some being json and some plain text */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    // failed @Valid check. returns a summary in "error" and a field-by-field map in
-    // "fieldErrors" that the frontend uses to highlight the right inputs
+    /* failed @Valid check. returns a summary in "error" and a field-by-field map in
+       "fieldErrors" that the frontend uses to highlight the right inputs */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
         java.util.Map<String, String> fieldErrors = new java.util.LinkedHashMap<>();

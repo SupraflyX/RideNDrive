@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-// GET /api/payments/user/{userId} - what someone paid and was paid, newest first,
-// each with its PAY-... reference
+/* GET /api/payments/user/{userId} - what someone paid and was paid, newest first,
+   each with its PAY-... reference */
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {

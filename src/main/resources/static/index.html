@@ -4,18 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RideNDrive — Share the ride, split the cost</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <meta name="theme-color" content="#0a0e17">
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236366f1'/%3E%3Ctext x='50' y='68' font-size='56' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
-    <link rel="stylesheet" href="index.css?v=12">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231d7a63'/%3E%3Ctext x='50' y='68' font-size='56' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="index.css?v=13">
     <!-- Google Maps JS SDK is loaded dynamically by index.js using the key
          served from /api/config (GOOGLE_MAPS_API_KEY env variable) — never hardcoded. -->
 </head>
 <body>
 
-<!-- ═══════════════════ AUTH ═══════════════════ -->
+<!-- auth -->
 <div id="auth-container" class="auth-wrapper">
     <div class="auth-split">
         <aside class="auth-brand">
@@ -112,7 +110,7 @@
     </div>
 </div>
 
-<!-- ═══════════════════ APP ═══════════════════ -->
+<!-- app -->
 <datalist id="location-suggestions"></datalist>
 
 <div id="app-wrapper" class="app-wrapper" style="display: none;">
@@ -181,7 +179,7 @@
 
         <div class="views-container">
 
-            <!-- ── PASSENGER: Find a Ride (landing) ── -->
+            <!-- passenger: find a ride (landing) -->
             <section id="view-search-rides" class="view-section">
                 <div class="search-hero">
                     <h1 id="search-hero-title">Where to?</h1>
@@ -209,7 +207,7 @@
                 <div id="map" class="map-panel" style="display: none;"></div>
             </section>
 
-            <!-- ── PASSENGER: My Rides ── -->
+            <!-- passenger: my rides -->
             <section id="view-my-bookings" class="view-section" style="display: none;">
                 <div class="split-layout">
                     <div class="card">
@@ -258,7 +256,7 @@
                 </div>
             </section>
 
-            <!-- ── PASSENGER: Rate ── -->
+            <!-- passenger: rate -->
             <section id="view-rate-driver" class="view-section" style="display: none;">
                 <div class="card card-narrow">
                     <h3>Rate a Driver</h3>
@@ -287,7 +285,7 @@
                 </div>
             </section>
 
-            <!-- ── DRIVER: My Trips (landing) ── -->
+            <!-- driver: my trips (landing) -->
             <section id="view-my-trips" class="view-section" style="display: none;">
                 <div class="view-head">
                     <div>
@@ -299,7 +297,7 @@
                 <div id="driver-trips-list" class="card-list"></div>
             </section>
 
-            <!-- ── DRIVER: Offer a Trip ── -->
+            <!-- driver: offer a trip -->
             <section id="view-offer-trip" class="view-section" style="display: none;">
                 <div class="card card-narrow">
                     <h3>Offer a Trip</h3>
@@ -335,7 +333,7 @@
                 </div>
             </section>
 
-            <!-- ── DRIVER: Find Passengers ── -->
+            <!-- driver: find passengers -->
             <section id="view-passenger-reqs" class="view-section" style="display: none;">
                 <div class="view-head">
                     <div>
@@ -346,7 +344,7 @@
                 <div id="open-requests-list" class="card-list"></div>
             </section>
 
-            <!-- ── DRIVER: Rate ── -->
+            <!-- driver: rate -->
             <section id="view-rate-passenger" class="view-section" style="display: none;">
                 <div class="card card-narrow">
                     <h3>Rate a Passenger</h3>
@@ -375,7 +373,7 @@
                 </div>
             </section>
 
-            <!-- ── SHARED: Community ── -->
+            <!-- shared: community -->
             <section id="view-directory" class="view-section" style="display: none;">
                 <div class="view-head">
                     <div>
@@ -401,7 +399,7 @@
                 </div>
             </section>
 
-            <!-- ── SHARED: Profile ── -->
+            <!-- shared: profile -->
             <section id="view-profile" class="view-section" style="display: none;">
                 <div id="profile-rep-card" class="card card-narrow rep-card" style="margin-bottom: 22px;"></div>
                 <div class="card card-narrow">
@@ -498,7 +496,7 @@
     </main>
 </div>
 
-<!-- ═══════════════════ MODALS ═══════════════════ -->
+<!-- modals -->
 <div id="edit-trip-modal" class="modal-overlay" style="display: none;">
     <div class="modal-card">
         <h3>Edit Trip</h3>
@@ -570,6 +568,6 @@
     </div>
 </div>
 
-<script src="index.js?v=12"></script>
+<script src="index.js?v=13"></script>
 </body>
 </html>

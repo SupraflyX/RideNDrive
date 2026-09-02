@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up JDK 17
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -39,13 +39,52 @@ jobs:
         name: application-jar
         path: target/*.jar
 
-  docker:
-    name: Docker Image Build
+  publish:
+    name: Image Build, Smoke Test & Publish
     runs-on: ubuntu-latest
     needs: build-test
 
-    steps:
-    - uses: actions/checkout@v3
+    # GITHUB_TOKEN needs write access to publish a package
+    permissions:
+      contents: read
+      packages: write
 
-    - name: Build Docker image
-      run: docker build -t ridendrive:${{ github.sha }} .
+    steps:
+    - uses: actions/checkout@v4
+
+    # ghcr rejects capitals, and the repository is SupraflyX/RideNDrive
+    - name: Work out the image name
+      run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+    - name: Build image
+      run: docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+
+    # start the image and wait for it to report UP before it is allowed out.
+    # the local profile runs on embedded H2, so this needs no database service
+    - name: Smoke test the image
+      run: |
+        docker run -d --name smoke -p 8080:8080 \
+          -e SPRING_PROFILES_ACTIVE=local "$IMAGE:${{ github.sha }}"
+        for i in $(seq 1 40); do
+          if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+            echo "container reported UP after $((i*3))s"
+            exit 0
+          fi
+          sleep 3
+        done
+        echo "container never became healthy:"
+        docker logs smoke
+        exit 1
+
+    - name: Stop the smoke container
+      if: always()
+      run: docker rm -f smoke || true
+
+    # pull requests build and smoke test, but only main publishes
+    - name: Publish to GitHub Container Registry
+      if: github.event_name == 'push'
+      run: |
+        echo "${{ secrets.GITHUB_TOKEN }}" \
+          | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        docker push "$IMAGE:${{ github.sha }}"
+        docker push "$IMAGE:latest"

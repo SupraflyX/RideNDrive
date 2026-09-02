@@ -16,8 +16,8 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// checks the reputation maths: the rolling average, the tier boundaries, and the
-// decay that kicks in after 30 days of inactivity
+/* checks the reputation maths: the rolling average, the tier boundaries, and the
+   decay that kicks in after 30 days of inactivity */
 public class ReputationServiceTest {
 
     private UserRepository userRepository;
@@ -47,8 +47,8 @@ public class ReputationServiceTest {
     public void testRollingAverageCalculation() {
         when(userRepository.findById(2L)).thenReturn(Optional.of(testUser));
 
-        // the rating is saved before handleNewRating runs, so the repository returns it too.
-        // mocking only the older two is what let the double-counting bug slip through
+        /* the rating is saved before handleNewRating runs, so the repository returns it too.
+           mocking only the older two is what let the double-counting bug slip through */
         Rating r1 = new Rating(reviewer, testUser, 4, "DRIVER_RATED");
         Rating r2 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
         Rating justSaved = new Rating(reviewer, testUser, 3, "DRIVER_RATED");
@@ -69,8 +69,8 @@ public class ReputationServiceTest {
     public void testTierUpgradeToGold() {
         when(userRepository.findById(2L)).thenReturn(Optional.of(testUser));
 
-        // Bob has two existing high ratings (5, 5) and gets a new rating of 5.
-        // Average: 5.0. This should map to PREMIUM_PRICING since score >= 4.8.
+        /* Bob has two existing high ratings (5, 5) and gets a new rating of 5.
+           Average: 5.0. This should map to PREMIUM_PRICING since score >= 4.8. */
         Rating r1 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
         Rating r2 = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
         Rating justSaved = new Rating(reviewer, testUser, 5, "DRIVER_RATED");
@@ -90,7 +90,6 @@ public class ReputationServiceTest {
     public void testTierDowngrade() {
         when(userRepository.findById(2L)).thenReturn(Optional.of(testUser));
 
-        // Bob has bad ratings. Gets a new rating of 1.
         Rating r1 = new Rating(reviewer, testUser, 2, "DRIVER_RATED");
         Rating justSaved = new Rating(reviewer, testUser, 1, "DRIVER_RATED");
         when(ratingRepository.findByRevieweeId(2L)).thenReturn(Arrays.asList(r1, justSaved));
@@ -108,13 +107,9 @@ public class ReputationServiceTest {
 
     @Test
     public void testTimeDecayPenalty() {
-        // Set last active date to 45 days in the past
         testUser.setLastActiveDate(LocalDateTime.now().minusDays(45));
 
-        // Apply decay penalty to rolling average of 4.5.
-        // Inactivity = 45 days. 45 - 30 = 15 days past threshold.
-        // Penalty: 15 * 0.01 = 0.15 points.
-        // Expected: 4.5 - 0.15 = 4.35 (maps to SILVER, as 4.35 is in [4.0, 4.5))
+        // 45 days idle = 15 past the threshold, so 4.5 - (15 * 0.01) = 4.35, which is SILVER
         double decayedScore = reputationService.applyTimeDecayPenalty(testUser, 4.5);
         assertEquals(4.35, decayedScore, 0.001);
         assertEquals(IncentiveTier.SILVER, reputationService.mapScoreToTier(decayedScore));
@@ -122,7 +117,6 @@ public class ReputationServiceTest {
 
     @Test
     public void testNoDecayUnder30Days() {
-        // Inactive for only 15 days
         testUser.setLastActiveDate(LocalDateTime.now().minusDays(15));
 
         double decayedScore = reputationService.applyTimeDecayPenalty(testUser, 4.5);

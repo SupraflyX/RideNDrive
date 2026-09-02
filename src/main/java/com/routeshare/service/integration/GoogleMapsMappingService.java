@@ -16,8 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
-// talks to the google distance matrix api. if there's no key, or the call fails, it
-// falls back to a rough local guess so the app still works offline
+/* talks to the google distance matrix api. if there's no key, or the call fails, it
+   falls back to a rough local guess so the app still works offline */
 @Service
 @Primary
 public class GoogleMapsMappingService implements MappingService {
@@ -69,8 +69,8 @@ public class GoogleMapsMappingService implements MappingService {
         return apiKey != null && !apiKey.trim().isEmpty();
     }
 
-    // pulls one field out of the api response ("distance" in metres, "duration" in
-    // seconds). null means no key or nothing usable came back, so use the local guess
+    /* pulls one field out of the api response ("distance" in metres, "duration" in
+       seconds). null means no key or nothing usable came back, so use the local guess */
     private Double apiMetric(String origin, String destination, String field, String what) {
         if (!hasApiKey()) {
             return null;

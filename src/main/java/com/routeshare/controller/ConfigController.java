@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-// hands the browser the bits of config it needs. the maps key comes from an env
-// variable rather than being written into the frontend. without it the SPA just
-// draws its own simple route view instead
+/* hands the browser the bits of config it needs. the maps key comes from an env
+   variable rather than being written into the frontend. without it the SPA just
+   draws its own simple route view instead */
 @RestController
 @RequestMapping("/api/config")
 public class ConfigController {

@@ -16,8 +16,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-// checks the stop planner: that it finds the shortest working order, and that each
-// of the five constraints actually rejects what it should
+/* checks the stop planner: that it finds the shortest working order, and that each
+   of the five constraints actually rejects what it should */
 public class StopPlanningServiceTest {
 
     private MappingService mappingService;
@@ -58,7 +58,6 @@ public class StopPlanningServiceTest {
         passenger2 = new User("Charlie (Passenger)", UserRole.PASSENGER);
         passenger2.setId(3L);
 
-        // Bob wants to go from ZoneC to ZoneD
         request1 = new RideRequest(
                 passenger1,
                 "ZoneC",
@@ -68,7 +67,6 @@ public class StopPlanningServiceTest {
         );
         request1.setId(20L);
 
-        // Charlie wants to go from ZoneE to ZoneF
         request2 = new RideRequest(
                 passenger2,
                 "ZoneE",
@@ -109,13 +107,12 @@ public class StopPlanningServiceTest {
 
     @Test
     public void testRejectsOverCapacity() {
-        // Limit capacity to 1
         vehicle.setCapacity(1);
 
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
 
-        // Setup mappings such that picking up both Bob (ZoneC) and Charlie (ZoneE) before dropping off is short,
-        // but overflows capacity. Bob must be dropped off before Charlie is picked up.
+        /* Setup mappings such that picking up both Bob (ZoneC) and Charlie (ZoneE) before dropping off is short,
+           but overflows capacity. Bob must be dropped off before Charlie is picked up. */
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(5);
         when(mappingService.getTravelTimeMinutes("ZoneC", "ZoneE")).thenReturn(5); // pickup Charlie -> Capacity exceeded!
         when(mappingService.getTravelTimeMinutes("ZoneC", "ZoneD")).thenReturn(5); // Bob dropoff
@@ -148,7 +145,6 @@ public class StopPlanningServiceTest {
 
     @Test
     public void testRespectsMaxStops() {
-        // Driver only wants 1 stop (pickup)
         offer.setMaxStops(1);
 
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
@@ -167,8 +163,8 @@ public class StopPlanningServiceTest {
     @Test
     public void testRespectsTimeWindow() {
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
-        // Driver arrives at Bob's pickup at 8:40 (departure 8:00 + travel 40 mins)
-        // But Bob's time window ends at 8:30. This is a time window violation!
+        /* Driver arrives at Bob's pickup at 8:40 (departure 8:00 + travel 40 mins)
+           But Bob's time window ends at 8:30. This is a time window violation! */
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(40);
 
         StopSequenceResult result = stopPlanningService.planRoute(offer, Arrays.asList(request1), vehicle);
@@ -226,9 +222,9 @@ public class StopPlanningServiceTest {
 
     @Test
     public void testMappingLookupsAreMemoisedWithinOnePlan() {
-        // The DFS re-evaluates the same legs constantly (every node prices the leg home).
-        // With a live Maps key each repeat would be an HTTP call, so the per-plan memo
-        // must absorb them: the mapping service sees each distinct leg exactly once.
+        /* The DFS re-evaluates the same legs constantly (every node prices the leg home).
+           With a live Maps key each repeat would be an HTTP call, so the per-plan memo
+           must absorb them: the mapping service sees each distinct leg exactly once. */
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(15);
         when(mappingService.getDistanceKm("ZoneA", "ZoneB")).thenReturn(10.0);
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneC")).thenReturn(5);
@@ -255,7 +251,6 @@ public class StopPlanningServiceTest {
 
     @Test
     public void testNoFeasibleRoute() {
-        // Driver detour budget is 5 minutes
         offer.setMaxDetourMinutes(5);
 
         when(mappingService.getTravelTimeMinutes("ZoneA", "ZoneB")).thenReturn(10);

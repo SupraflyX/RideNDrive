@@ -23,9 +23,9 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// end to end tests for the booking lifecycle and the notification inbox.
-// checks that legal moves work, illegal ones come back 409, the right person gets
-// notified each time, and the inbox endpoints behave
+/* end to end tests for the booking lifecycle and the notification inbox.
+   checks that legal moves work, illegal ones come back 409, the right person gets
+   notified each time, and the inbox endpoints behave */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -55,8 +55,6 @@ public class BookingLifecycleIntegrationTest {
     private static Integer tripId;
     private static Long pendingRequestId;
     private static Long secondRequestId;
-
-    // setup: driver, passenger, trip, one pending booking
 
     @Test
     @Order(1)
@@ -111,8 +109,6 @@ public class BookingLifecycleIntegrationTest {
 
         assertThat(request.getStatus()).isEqualTo(BookingStatus.PENDING);
     }
-
-    // legal transitions
 
     @Test
     @Order(4)
@@ -207,8 +203,6 @@ public class BookingLifecycleIntegrationTest {
         assertThat(bookingLifecycleService.isLegalTransition(BookingStatus.COMPLETED, BookingStatus.CANCELLED)).isFalse();
     }
 
-    // completing a trip
-
     @Test
     @Order(12)
     public void completeTrip_transitionsConfirmedBookings() {
@@ -236,8 +230,6 @@ public class BookingLifecycleIntegrationTest {
                 "/api/bookings/trip/888888/complete?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
-
-    // the inbox endpoints
 
     @Test
     @Order(14)
@@ -284,8 +276,6 @@ public class BookingLifecycleIntegrationTest {
         assertThat(unread.longValue()).isZero();
     }
 
-    // you can only rate people you actually rode with
-
     @Test
     @Order(20)
     public void rateable_passengerCanRateDriver_afterCompletedTrip() {
@@ -310,10 +300,9 @@ public class BookingLifecycleIntegrationTest {
     @Test
     @Order(22)
     public void completeTrip_afterPickupWindowElapsed_succeeds() {
-        // regression: completing a trip used to blow up with "could not commit JPA
-        // transaction" because @FutureOrPresent on the pickup window was re-checked on
-        // flush when the status changed. that rule only applies at creation now, so
-        // transitions on old bookings have to keep working
+        /* regression: completing a trip used to fail with "could not commit JPA transaction"
+           because @FutureOrPresent on the pickup window was re-checked on flush. that rule only
+           applies at creation now, so transitions on old bookings have to keep working */
         User driver = userRepository.save(
                 new User("WindowElapsedDriver", com.routeshare.model.enums.UserRole.DRIVER));
         User pax = userRepository.save(
