@@ -9,13 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-// the booking lifecycle over http:
-//   POST /api/bookings/{id}/confirm?actorId=  driver accepts
-//   POST /api/bookings/{id}/reject?actorId=   driver declines
-//   POST /api/bookings/{id}/cancel?actorId=   passenger withdraws
-//   POST /api/bookings/trip/{id}/complete?actorId=  driver closes the trip
-//   GET  /api/bookings/rateable/{userId}      who this user is allowed to rate
-//
 // a move that isn't allowed comes back 409, the wrong person acting comes back 403
 @RestController
 @RequestMapping("/api/bookings")

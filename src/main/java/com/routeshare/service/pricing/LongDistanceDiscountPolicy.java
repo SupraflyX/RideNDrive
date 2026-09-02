@@ -2,8 +2,8 @@ package com.routeshare.service.pricing;
 
 import org.springframework.stereotype.Component;
 
-// long trips shouldn't be priced like a taxi. over 100km we cap the fare at roughly
-// what sharing fuel and tolls would actually cost
+/* long trips shouldn't be priced like a taxi. over 100km we cap the fare at roughly
+   what sharing fuel and tolls would actually cost */
 @Component
 public class LongDistanceDiscountPolicy implements PricingPolicy {
 

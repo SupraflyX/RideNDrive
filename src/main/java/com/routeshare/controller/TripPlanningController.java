@@ -107,16 +107,16 @@ public class TripPlanningController {
         return active;
     }
 
-    // did the plan actually fit everyone in? needs a pickup and a dropoff each, plus
-    // the driver's own two ends
+    /* did the plan actually fit everyone in? needs a pickup and a dropoff each, plus
+       the driver's own two ends */
     private static boolean servesAll(StopSequenceResult plan, int requestCount) {
         return plan.isFeasible()
                 && plan.getSequence() != null
                 && plan.getSequence().size() >= requestCount * 2 + 2;
     }
 
-    // what the trip looks like to the person searching: they care about their own leg,
-    // not the driver's whole route. walks the stops from their pickup to their dropoff
+    /* what the trip looks like to the person searching: they care about their own leg,
+       not the driver's whole route. walks the stops from their pickup to their dropoff */
     private Map<String, Object> yourRideMetrics(List<PlannedStop> stops, String passengerName,
                                                 double directDistanceKm) {
         Map<String, Object> metrics = new LinkedHashMap<>();
@@ -151,11 +151,11 @@ public class TripPlanningController {
         return metrics;
     }
 
-    // ── endpoints ────────────────────────────────────────────────────
+    // endpoints
 
-    // finds trips that could actually take this passenger. each candidate is checked
-    // against the driver's rules first, then planned together with the bookings it
-    // already has, so we never offer a seat that doesn't fit
+    /* finds trips that could actually take this passenger. each candidate is checked
+       against the driver's rules first, then planned together with the bookings it
+       already has, so we never offer a seat that doesn't fit */
     @PostMapping("/search-matches")
     public ResponseEntity<?> searchMatchingTrips(@RequestBody Map<String, String> payload) {
         String origin = payload.get("origin");
@@ -180,8 +180,8 @@ public class TripPlanningController {
                 if (!offer.getDepartureTime().toLocalDate().equals(searchDate)) {
                     continue;
                 }
-                // a trip that has already left is no use to anyone. filtering here rather
-                // than in the browser keeps the result count and the list agreeing
+                /* a trip that has already left is no use to anyone. filtering here rather
+                   than in the browser keeps the result count and the list agreeing */
                 if (offer.getDepartureTime().isBefore(LocalDateTime.now())) {
                     continue;
                 }
@@ -234,14 +234,14 @@ public class TripPlanningController {
         } catch (MapApiException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Google Maps API Error: " + e.getMessage());
         }
-        // soonest first, so the list has a defined order instead of whatever the
-        // database happened to hand back
+        /* soonest first, so the list has a defined order instead of whatever the
+           database happened to hand back */
         matchingResults.sort(Comparator.comparing(m -> LocalDateTime.parse((String) m.get("departureTime"))));
         return ResponseEntity.ok(matchingResults);
     }
 
-    // book a seat: check the driver's rules, save the request, re-plan the whole trip
-    // with it included, price it, take the payment, tell the driver
+    /* book a seat: check the driver's rules, save the request, re-plan the whole trip
+       with it included, price it, take the payment, tell the driver */
     @PostMapping("/{tripOfferId}/book-passenger")
     public ResponseEntity<?> bookPassengerOnTrip(@PathVariable Long tripOfferId,
                                                  @RequestBody Map<String, String> payload) {
@@ -384,8 +384,8 @@ public class TripPlanningController {
         }
     }
 
-    // what a driver's route looks like right now. re-plans over the active bookings
-    // without saving anything, and returns waypoints the map can draw
+    /* what a driver's route looks like right now. re-plans over the active bookings
+       without saving anything, and returns waypoints the map can draw */
     @GetMapping("/{tripOfferId}/route")
     public ResponseEntity<?> currentRoute(@PathVariable Long tripOfferId) {
         TripOffer offer = tripOfferService.findById(tripOfferId).orElse(null);

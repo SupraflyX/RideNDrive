@@ -19,15 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-// the rules for how a booking can change state, plus the notification that goes out
-// each time it does.
-//
-//   PENDING   -> CONFIRMED (driver accepts) | REJECTED (driver declines) | CANCELLED (passenger pulls out)
-//   CONFIRMED -> CANCELLED (passenger pulls out) | COMPLETED (trip finished)
-//   the other three are final
-//
-// only the trip's driver can confirm, decline or complete. only the passenger who made
-// the booking can withdraw it. anything else throws SecurityException and comes back as a 403.
+/* enforces the booking state machine (the transitions are listed on BookingStatus) and
+   sends a notification on each move. only the trip driver can confirm, decline or complete;
+   only the booking passenger can withdraw. anything else throws SecurityException */
 @Service
 public class BookingLifecycleService {
 
@@ -92,8 +86,8 @@ public class BookingLifecycleService {
         return request;
     }
 
-    // driver closes the trip: every confirmed booking on it becomes completed and
-    // each passenger gets asked to rate. returns how many bookings were closed
+    /* driver closes the trip: every confirmed booking on it becomes completed and
+       each passenger gets asked to rate. returns how many bookings were closed */
     @Transactional
     public int completeTrip(Long tripOfferId, Long actorId) {
         TripOffer offer = tripOfferRepository.findById(tripOfferId)
@@ -121,8 +115,8 @@ public class BookingLifecycleService {
         return completed;
     }
 
-    // who this person is allowed to rate: only people they actually rode with, so
-    // drivers from their completed bookings and passengers from their completed trips
+    /* who this person is allowed to rate: only people they actually rode with, so
+       drivers from their completed bookings and passengers from their completed trips */
     public List<User> rateableCounterparts(Long userId) {
         List<User> counterparts = new ArrayList<>();
         Set<Long> seen = new HashSet<>();

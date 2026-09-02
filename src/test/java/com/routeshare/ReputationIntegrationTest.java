@@ -13,12 +13,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// the reputation maths through the real service and a real database.
-//
-// the unit tests mock the rating repository, which means they can only check the maths
-// against whatever the mock is told to return. this goes through RatingService for real,
-// so it sees what actually lands in the database - that is where the double-counting bug
-// lived: the rating is saved first, so it was already in the list when it was added again.
+/* the reputation maths through the real service and a real database. the unit tests mock
+   the rating repository, so they only see what the mock returns. this goes through
+   RatingService for real, which is where the double-counting bug lived */
 @SpringBootTest
 @ActiveProfiles("test")
 class ReputationIntegrationTest {
@@ -35,8 +32,8 @@ class ReputationIntegrationTest {
         ratingService.save(new Rating(reviewer, reviewee, 5, "DRIVER_RATED"));
         ratingService.save(new Rating(reviewer, reviewee, 1, "DRIVER_RATED"));
 
-        // (5 + 5 + 1) / 3 = 3.67, not 3.0 - which is what came out when the newest
-        // rating was counted twice
+        /* (5 + 5 + 1) / 3 = 3.67, not 3.0 - which is what came out when the newest
+           rating was counted twice */
         User after = userRepository.findById(reviewee.getId()).orElseThrow();
         assertThat(after.getReputationScore()).isCloseTo(11.0 / 3.0, org.assertj.core.data.Offset.offset(0.0001));
         assertThat(after.getIncentiveTier()).isEqualTo(IncentiveTier.STANDARD);

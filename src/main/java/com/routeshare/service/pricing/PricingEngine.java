@@ -10,12 +10,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-// works out what a ride costs.
-//
-// two ways in. the default one runs every PricingPolicy in priority order. the other
-// takes a driver's own rules and applies those instead. a driver with no rules gets
-// the default. either way the result carries a list of what got applied, so a fare
-// can always be explained.
+/* works out what a ride costs. the default path runs every PricingPolicy in priority order;
+   a driver with their own rules gets those instead. either way the result carries a list of
+   what was applied, so a fare can always be explained */
 @Service
 public class PricingEngine {
 
@@ -53,8 +50,8 @@ public class PricingEngine {
         return new PricingResult(round(baseFare), round(currentFare), appliedPolicies);
     }
 
-    // same thing but using the driver's own rules. each one that fires gets written
-    // into the audit list as "DriverRule:TYPE(value)"
+    /* same thing but using the driver's own rules. each one that fires gets written
+       into the audit list as "DriverRule:TYPE(value)" */
     public PricingResult calculateFare(RideContext context, List<DriverPricingRule> driverRules) {
         if (driverRules == null || driverRules.isEmpty()) {
             return calculateFare(context);

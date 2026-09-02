@@ -15,10 +15,8 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-// fills an empty database with something to look at: a few drivers and passengers
-// with history, trips, bookings in each state, ratings, policies and payments.
-// only runs when there are no users at all, so it can never touch real data.
-// every demo account uses the password "demo123"
+/* seeds an empty database with demo drivers, passengers, trips and bookings.
+   only runs when there are no users, so it never touches real data. password: demo123 */
 @Component
 @Profile("!test")
 public class DemoDataSeeder implements CommandLineRunner {

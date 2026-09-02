@@ -5,9 +5,9 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-// everything a pricing rule might need to look at, plus the questions they ask
-// ("is this rush hour?", "same destination?"). both pricing paths use these same
-// definitions so they can't drift apart
+/* everything a pricing rule might need to look at, plus the questions they ask
+   ("is this rush hour?", "same destination?"). both pricing paths use these same
+   definitions so they can't drift apart */
 public class RideContext {
 
     private static final LocalTime MORNING_RUSH_START = LocalTime.of(7, 0);

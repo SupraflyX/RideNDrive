@@ -30,9 +30,9 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // no POST here on purpose. registration goes through AuthController, which is the only
-    // place that bcrypt hashes the password. a generic POST stored whatever string it was
-    // given as the "hash", so the account could never log in
+    /* no POST here on purpose. registration goes through AuthController, which is the only
+       place that bcrypt hashes the password. a generic POST stored whatever string it was
+       given as the "hash", so the account could never log in */
 
     @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable Long id,

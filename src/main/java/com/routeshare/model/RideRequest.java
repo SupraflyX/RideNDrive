@@ -35,10 +35,9 @@ public class RideRequest {
     @Column(nullable = false)
     private String destination;
 
-    // no @FutureOrPresent here on purpose. hibernate re-validates dirty entities on every
-    // flush, so a time constraint on the entity breaks confirming or completing a booking
-    // once its window has passed - the whole commit fails. "must be in the future" is only
-    // a rule about creating a booking, so the controllers check it instead
+    /* no @FutureOrPresent here on purpose. hibernate re-validates dirty entities on flush, so
+       a time constraint would break confirming or completing a booking once its window has
+       passed. "must be in the future" only applies at creation, so the controllers check it */
     @NotNull(message = "Pickup time window start is required")
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowStart;
@@ -47,8 +46,8 @@ public class RideRequest {
     @Column(nullable = false)
     private LocalDateTime pickupTimeWindowEnd;
 
-    // BookingLifecycleService guards the transitions, BookingStatus lists what's legal.
-    // the column default is so rows created before this field existed read as PENDING
+    /* BookingLifecycleService guards the transitions, BookingStatus lists what's legal.
+       the column default is so rows created before this field existed read as PENDING */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "varchar(20) default 'PENDING'")
     private BookingStatus status = BookingStatus.PENDING;

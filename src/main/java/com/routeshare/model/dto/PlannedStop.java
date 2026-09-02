@@ -1,9 +1,7 @@
 package com.routeshare.model.dto;
 
-// one stop on a planned route.
-// the planner produces labels like "PICKUP(Alice) at Messina" and callers used to
-// pick those apart with substring maths. keeping the structured fields next to the
-// label means it gets formatted once here and never parsed again
+/* one stop on a planned route. keeping the structured fields next to the label means it
+   gets formatted once here instead of callers picking the label apart with substring maths */
 public class PlannedStop {
 
     // ORIGIN and DESTINATION are the driver's own two ends, the others belong to a passenger

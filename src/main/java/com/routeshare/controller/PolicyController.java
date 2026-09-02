@@ -25,14 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-// where drivers manage their own rules:
-//   GET    /api/policies/travel/{driverId}         their travel rules
-//   POST   /api/policies/travel/{driverId}         add one
-//   DELETE /api/policies/travel/rule/{ruleId}      remove one
-//   GET    /api/policies/pricing/{driverId}        their pricing rules
-//   POST   /api/policies/pricing/{driverId}        add one
-//   DELETE /api/policies/pricing/rule/{ruleId}     remove one
-//   GET    /api/policies/rank/{driverId}/{tripId}  open requests, ranked
+// where drivers manage their own travel and pricing rules, and rank open requests
 @RestController
 @RequestMapping("/api/policies")
 public class PolicyController {

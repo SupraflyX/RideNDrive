@@ -15,8 +15,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
-// recalculates someone's reputation when they get a new rating: average their scores,
-// knock a bit off if they've been inactive for a while, then move them up or down a tier
+/* recalculates someone's reputation when they get a new rating: average their scores,
+   knock a bit off if they've been inactive for a while, then move them up or down a tier */
 @Service
 public class ReputationService {
 
@@ -52,9 +52,9 @@ public class ReputationService {
                 user.getName(), String.format("%.2f", rollingAverage), String.format("%.2f", finalScore), newTier);
     }
 
-    // RatingService saves the new rating before calling us, so it is ALREADY in this
-    // list. averaging the list is the whole calculation - adding newScore on top of it
-    // counted the newest rating twice and dragged every score toward it
+    /* RatingService saves the new rating before calling us, so it is ALREADY in this
+       list. averaging the list is the whole calculation - adding newScore on top of it
+       counted the newest rating twice and dragged every score toward it */
     private double calculateRollingAverage(List<Rating> ratings) {
         if (ratings.isEmpty()) {
             return 0.0;

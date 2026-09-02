@@ -16,10 +16,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// tests for the payment ledger and the driver route view:
-// every booking writes a transaction, both sides see it on their statement,
-// deleting an account clears its ledger rows, and the route endpoint re-plans
-// without saving anything
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")

@@ -21,14 +21,14 @@ public interface RideRequestRepository extends JpaRepository<RideRequest, Long> 
     // needed when deleting an account
     List<RideRequest> findByPassengerId(Long passengerId);
 
-    // requests a driver could still pick up: not attached to any trip yet, still PENDING,
-    // and the pickup window hasn't passed. done in sql so we don't load every request
+    /* requests a driver could still pick up: not attached to any trip yet, still PENDING,
+       and the pickup window hasn't passed. done in sql so we don't load every request */
     List<RideRequest> findByTripOfferIsNullAndStatusAndPickupTimeWindowStartAfter(
             BookingStatus status, java.time.LocalDateTime notBefore);
 
-    // one jpql statement instead of deleting entities one by one. going entity-by-entity
-    // meant a managed TripOffer could re-save the booking on flush and the delete would fail.
-    // this skips the persistence context, and flush/clear keep it in sync afterwards
+    /* one jpql statement instead of deleting entities one by one. going entity-by-entity
+       meant a managed TripOffer could re-save the booking on flush and the delete would fail.
+       this skips the persistence context, and flush/clear keep it in sync afterwards */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from RideRequest r where r.passenger.id = :passengerId")
     int deleteBulkByPassengerId(Long passengerId);

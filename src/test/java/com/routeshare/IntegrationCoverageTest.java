@@ -17,8 +17,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
-// walks every rest endpoint, happy paths and error branches both, to keep coverage
-// honest and catch anything that breaks at the http boundary
+/* walks every rest endpoint, happy paths and error branches both, to keep coverage
+   honest and catch anything that breaks at the http boundary */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")
@@ -46,8 +46,6 @@ public class IntegrationCoverageTest {
     private static Integer tripId;
     private static Integer vehicleId;
     private static Integer ratingId;
-
-    // 1. auth, happy paths
 
     @Test
     @Order(1)
@@ -100,8 +98,6 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
-    // 2. auth, validation and errors
-
     @Test
     @Order(5)
     public void login_missingUsername_returnsBadRequest() {
@@ -136,8 +132,8 @@ public class IntegrationCoverageTest {
         try {
             restTemplate.exchange("/api/auth/login", HttpMethod.POST, entity, String.class);
         } catch (Exception e) {
-            // Java HttpURLConnection throws on 401 in streaming mode.
-            // The server DID return UNAUTHORIZED, which is the expected behavior.
+            /* Java HttpURLConnection throws on 401 in streaming mode.
+               The server DID return UNAUTHORIZED, which is the expected behavior. */
             assertThat(e.getMessage()).contains("server authentication");
         }
     }
@@ -221,8 +217,6 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // 3. users
-
     @Test
     @Order(20)
     public void getAllUsers() {
@@ -283,16 +277,12 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // 4. vehicles
-
     @Test
     @Order(30)
     public void getAllVehicles() {
         ResponseEntity<List> res = restTemplate.getForEntity("/api/vehicles", List.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        // Should have at least 1 vehicle from driver registration
         assertThat(res.getBody().size()).isGreaterThanOrEqualTo(1);
-        // Grab the vehicleId for later tests
         Map first = (Map) res.getBody().get(0);
         vehicleId = (Integer) first.get("id");
     }
@@ -353,8 +343,6 @@ public class IntegrationCoverageTest {
         ResponseEntity<Map> res = restTemplate.exchange("/api/vehicles/99999?actorId=" + driverId, HttpMethod.PUT, entity, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
-
-    // 5. trip offers
 
     @Test
     @Order(40)
@@ -436,8 +424,6 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // 6. searching for matches
-
     @Test
     @Order(50)
     public void searchMatches_success() {
@@ -491,13 +477,9 @@ public class IntegrationCoverageTest {
             assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(res.getBody()).isEmpty();
         } finally {
-            // Reset spy behavior to not affect subsequent tests
             reset(stopPlanningService);
         }
     }
-
-
-    // 7. booking a seat
 
     @Test
     @Order(60)
@@ -568,7 +550,6 @@ public class IntegrationCoverageTest {
     @Test
     @Order(65)
     public void bookPassenger_missingWindowParams_success() {
-        // Create another passenger to book
         Map<String, Object> passengerPayload = new HashMap<>();
         passengerPayload.put("name", "IntegPass3");
         passengerPayload.put("password", "password");
@@ -585,9 +566,6 @@ public class IntegrationCoverageTest {
         ResponseEntity<Map> res = restTemplate.postForEntity("/api/trips/" + tripId + "/book-passenger", payload, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
-
-
-    // 8. editing a trip that already has passengers
 
     @Test
     @Order(72)
@@ -610,8 +588,6 @@ public class IntegrationCoverageTest {
         // Could be OK or BAD_REQUEST depending on routing feasibility – both exercise the code
         assertThat(res.getStatusCode().value()).isIn(200, 400);
     }
-
-    // 9. checking a driver's existing trips
 
     @Test
     @Order(73)
@@ -650,8 +626,6 @@ public class IntegrationCoverageTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
-    // 10. ride requests
-
     @Test
     @Order(80)
     public void getAllRides() {
@@ -677,8 +651,6 @@ public class IntegrationCoverageTest {
         ResponseEntity<Map> res = restTemplate.getForEntity("/api/rides/99999", Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
-
-    // 11. ratings
 
     @Test
     @Order(90)
@@ -728,8 +700,6 @@ public class IntegrationCoverageTest {
         ResponseEntity<Map> res = restTemplate.getForEntity("/api/ratings/" + ratingId, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
-
-    // 12. ownership: acting on someone else's record should give 403
 
     @Test
     @Order(95)
@@ -816,8 +786,6 @@ public class IntegrationCoverageTest {
                 "/api/policies/travel/" + driverId + "?actorId=" + passengerId, payload, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
-
-    // 13. cleanup, and check the deletes cascade
 
     @Test
     @Order(100)

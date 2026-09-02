@@ -10,11 +10,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-// the notification inbox:
-//   GET  /api/notifications/user/{userId}                everything, newest first
-//   GET  /api/notifications/user/{userId}/unread-count   for the badge
-//   POST /api/notifications/{id}/mark-read               mark one read
-//   POST /api/notifications/user/{userId}/mark-all-read  clear the badge
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {

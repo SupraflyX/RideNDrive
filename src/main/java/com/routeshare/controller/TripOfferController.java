@@ -23,8 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// crud for the trips drivers post. an edit that would break the route for people
-// already booked on it gets rejected
+/* crud for the trips drivers post. an edit that would break the route for people
+   already booked on it gets rejected */
 @RestController
 @RequestMapping("/api/trips")
 public class TripOfferController {
@@ -66,8 +66,8 @@ public class TripOfferController {
         if (existingOffer == null) {
             return ResponseEntity.notFound().build();
         }
-        // deliberately outside the try below: SecurityException is a RuntimeException, so
-        // catching it there would turn a rejected edit into a 404 instead of a 403
+        /* deliberately outside the try below: SecurityException is a RuntimeException, so
+           catching it there would turn a rejected edit into a 404 instead of a 403 */
         Ownership.require(existingOffer.getDriver() == null ? null : existingOffer.getDriver().getId(),
                 actorId, "trip");
 
@@ -108,8 +108,8 @@ public class TripOfferController {
         }
         Ownership.require(offer.getDriver() == null ? null : offer.getDriver().getId(), actorId, "trip");
         if (hasCompletedBookings(offer)) {
-            // completed trips are history. deleting would cascade over those bookings and
-            // orphan the payment references and rating eligibility that point at them
+            /* completed trips are history. deleting would cascade over those bookings and
+               orphan the payment references and rating eligibility that point at them */
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("error", "This trip is completed; it cannot be cancelled."));
         }

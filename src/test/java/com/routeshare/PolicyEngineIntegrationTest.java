@@ -23,10 +23,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// tests for the driver-owned rules: adding and removing them, rejecting a passenger
-// who breaks one, ranking the ones who pass, driver pricing including the loyalty
-// discount, and the overbooking fix where a booking has to fit alongside the ones
-// already on the trip
+// driver-owned rules: add/remove, rejection, ranking, pricing, and the overbooking fix
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @TestPropertySource(properties = "google.maps.api-key=")
@@ -63,10 +60,6 @@ public class PolicyEngineIntegrationTest {
         if (luggage != null) p.put("luggageSize", luggage);
         return p;
     }
-
-    // ─────────────────────────────────────────────────────────────────
-    // Setup
-    // ─────────────────────────────────────────────────────────────────
 
     @Test
     @Order(1)
@@ -121,8 +114,8 @@ public class PolicyEngineIntegrationTest {
         t2.put("destination", DEST);
         t2.put("departureTime", LocalDateTime.now().plusDays(2).toString());
         t2.put("maxStops", 3);
-        // detour budget of 5 is under the smallest possible leg time of 6, so serving
-        // two people one after the other in a 1-seat car can never work. capacity is what binds
+        /* detour budget of 5 is under the smallest possible leg time of 6, so serving
+           two people one after the other in a 1-seat car can never work. capacity is what binds */
         t2.put("maxDetourMinutes", 5);
         smallTripId = (Integer) restTemplate.postForEntity("/api/trips", t2, Map.class).getBody().get("id");
 
@@ -139,8 +132,6 @@ public class PolicyEngineIntegrationTest {
         assertThat(smallTripId).isNotNull();
         assertThat(defaultTripId).isNotNull();
     }
-
-    // adding and removing travel rules
 
     @Test
     @Order(3)
@@ -182,8 +173,6 @@ public class PolicyEngineIntegrationTest {
                 Map.of("type", "MIN_PASSENGER_REPUTATION"), Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
-
-    // a rule blocking a booking
 
     @Test
     @Order(7)
@@ -233,8 +222,6 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getBody()).hasSize(2);
     }
 
-    // overbooking regression
-
     @Test
     @Order(12)
     public void overbooking_secondPassengerOnOneSeatCar_failsRouting() {
@@ -252,8 +239,6 @@ public class PolicyEngineIntegrationTest {
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(second.getBody().get("bookingStatus")).isEqualTo("FAILED_ROUTING");
     }
-
-    // ranking
 
     @Test
     @Order(13)
@@ -296,8 +281,6 @@ public class PolicyEngineIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
-    // driver pricing rules and the loyalty discount
-
     @Test
     @Order(15)
     public void addPricingRules_succeeds() {
@@ -322,8 +305,8 @@ public class PolicyEngineIntegrationTest {
         good.setIncentiveTier(IncentiveTier.GOLD);
         userRepository.save(good);
 
-        // Book on the main trip via a fresh compliant request (previous one from
-        // Order 10 is already attached; use different pickup window to avoid duplicate rule)
+        /* Book on the main trip via a fresh compliant request (previous one from
+           Order 10 is already attached; use different pickup window to avoid duplicate rule) */
         ResponseEntity<Map> res = restTemplate.postForEntity(
                 "/api/trips/" + tripId + "/book-passenger",
                 bookPayload(paxWeakId, ORIGIN, DEST, "NONE"), Map.class);
@@ -374,8 +357,6 @@ public class PolicyEngineIntegrationTest {
         assertThat(sawDefaultTrip).as("rule-less trip must be priced by the default chain").isTrue();
     }
 
-    // only the right person can move a booking along
-
     @Test
     @Order(18)
     public void confirm_byNonDriver_isForbidden() {
@@ -402,8 +383,6 @@ public class PolicyEngineIntegrationTest {
                 "/api/bookings/" + onMainTrip.getId() + "/cancel?actorId=" + driverId, null, Map.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
-
-    // monitoring endpoints
 
     @Test
     @Order(20)
