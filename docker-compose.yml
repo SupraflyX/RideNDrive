@@ -22,13 +22,16 @@ services:
       timeout: 3s
       retries: 12
 
+  # allowPublicKeyRetrieval is needed because mysql 8 defaults to the
+  # caching_sha2_password plugin, which asks for the server's public key to
+  # authenticate over a plaintext connection. without it the app cannot connect
   app:
     build: .
     depends_on:
       db:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/routesharedb?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/routesharedb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
