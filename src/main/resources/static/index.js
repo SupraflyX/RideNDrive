@@ -187,8 +187,8 @@ function showAuthScreens() {
     document.body.className = "";
     const authContainer = document.getElementById("auth-container");
     const appWrapper = document.getElementById("app-wrapper");
-    // block, not flex: .auth-split is a full-width grid, and making its parent a flex
-    // container shrinks it to content width and pushes the form off to the left
+    /* block, not flex: .auth-split is a full-width grid, and making its parent a flex
+       container shrinks it to content width and pushes the form off to the left */
     if (authContainer) authContainer.style.display = "block";
     if (appWrapper) appWrapper.style.display = "none";
     
@@ -325,9 +325,8 @@ function setupAuthListeners() {
         }
     });
 
-    // ── Inline validation feedback (server-side bean validation → per-field hints) ──
-    // The API's 400 responses carry a fieldErrors map (see GlobalExceptionHandler);
-    // these helpers paint it next to the offending inputs instead of only toasting.
+    /* per-field hints built from the fieldErrors map the api returns on a 400 (see
+       GlobalExceptionHandler), painted next to the offending input instead of only toasting */
     window.clearFieldErrors = function (formEl) {
         if (!formEl) return;
         formEl.querySelectorAll(".input-error").forEach(el => el.classList.remove("input-error"));
@@ -506,8 +505,8 @@ function setupFormListeners() {
         }
     });
 
-    // Rating forms — both directions submit the same payload to the same endpoint,
-    // differing only in which select they read and how the log line reads (FR-10).
+    /* both rating directions submit the same payload to the same endpoint, differing only
+       in which select they read and how the log line reads (FR-10) */
     wireRatingForm("passenger-create-rating-form", "passenger-rating-reviewee",
                    "passenger-rating-score", "PASSENGER_RATED", "Driver");
     wireRatingForm("driver-create-rating-form", "driver-rating-reviewee",
@@ -828,8 +827,8 @@ async function renderRidesTable() {
         </div>`;
     };
 
-    // Offer Ride is wired by listener, so a request's free-text origin can never
-    // break out of an inline handler into script context.
+    /* offer ride is wired by listener, so a request's free-text origin can never break out
+       of an inline handler into script context */
     const wireOfferButtons = () => {
         list.querySelectorAll(".offer-ride-btn").forEach(btn =>
             btn.addEventListener("click", e => {
@@ -866,8 +865,7 @@ async function renderRidesTable() {
     wireOfferButtons();
 }
 
-// Populate rating dropdowns — FR-10 integrity: only counterparts from
-// COMPLETED bookings are rateable (backend: /api/bookings/rateable).
+// only counterparts from COMPLETED bookings are rateable (backend: /api/bookings/rateable)
 async function populateDropdowns() {
     if (!currentUser) return;
 
@@ -956,10 +954,10 @@ async function runPlannerSearch() {
                         widen your pickup time window, try the day before or after, or search from a bigger nearby hub.
                     </p>
                     <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                        <button type="button" class="btn-secondary" style="font-size: 0.8rem;"
+                        <button type="button" class="btn btn-sm btn-secondary"
                             onclick="swapInputs('search-origin','search-dest'); document.getElementById('search-rides-form').requestSubmit();">⇄ Try the reverse route</button>
-                        <button type="button" class="btn-secondary" style="font-size: 0.8rem;"
-                            onclick="navigateTo('view-my-bookings')">📬 Post a ride request instead</button>
+                        <button type="button" class="btn btn-sm btn-secondary"
+                            onclick="navigateTo('view-my-bookings')">Post a ride request instead</button>
                     </div>
                 </div>
             `;
@@ -981,8 +979,8 @@ function renderSearchResults(matches, searchPayload) {
     const mapEl = document.getElementById("map");
     if (mapEl) mapEl.style.display = "none"; 
 
-    // the server already drops trips that have left, but keep the guard so a stale
-    // result set can never show a ride you cannot book
+    /* the server already drops trips that have left, but keep the guard so a stale
+       result set can never show a ride you cannot book */
     const now = new Date();
     const futureMatches = matches.filter(m => new Date(m.departureTime) >= now);
 
@@ -1265,9 +1263,8 @@ function logConsole(message, cssClass = "") {
     feed.scrollTop = feed.scrollHeight;
 }
 
-// Utility formatting functions
-// the api speaks in enum constants (PREMIUM_PRICING, CANCELLED). nobody should have to
-// read those, so every place they reach the screen goes through one of these
+/* the api speaks in enum constants (PREMIUM_PRICING, CANCELLED). nobody should have to
+   read those, so every place they reach the screen goes through one of these */
 const TIER_LABELS = { STANDARD: "Standard", SILVER: "Silver", GOLD: "Gold", PREMIUM_PRICING: "Premium" };
 const STATUS_LABELS = { PENDING: "Awaiting driver", CONFIRMED: "Confirmed", REJECTED: "Declined",
                         CANCELLED: "Cancelled", COMPLETED: "Completed" };
@@ -1300,8 +1297,8 @@ function formatDateTime(isoString) {
     return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// a pickup window almost always starts and ends on the same day, so printing the date
-// twice just makes the line long. same day -> "25/08/2026 07:30 - 10:00"
+/* a pickup window almost always starts and ends on the same day, so printing the date
+   twice just makes the line long. same day -> "25/08/2026 07:30 - 10:00" */
 function formatWindow(startIso, endIso) {
     if (!startIso || !endIso) return formatDateTime(startIso || endIso);
     const a = new Date(startIso), b = new Date(endIso);
@@ -1914,10 +1911,8 @@ async function bindPassengerToExistingTrip(tripOfferId, origin, destination, pas
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   NOTIFICATION CENTER (Sprint 7: FR-13) — Observer pattern client side
-   Polls the inbox endpoint and renders the bell badge + dropdown panel.
-   ═══════════════════════════════════════════════════════════════════ */
+/* notification bell. polls the inbox endpoint on a timer and redraws the
+   badge and the dropdown panel */
 let notifPollTimer = null;
 let cachedNotifications = [];
 
@@ -1998,10 +1993,8 @@ async function markAllNotifsRead() {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   BOOKING LIFECYCLE ACTIONS (Sprint 6: FR-12) — client for the
-   BookingController state machine endpoints.
-   ═══════════════════════════════════════════════════════════════════ */
+/* client side of the booking state machine. each button here maps onto one
+   of the BookingController transition endpoints */
 function bookingStatusBadge(status) {
     const s = status || "PENDING";
     return `<span class="status-badge status-${s}">${statusLabel(s)}</span>`;
@@ -2047,11 +2040,8 @@ async function completeTripLifecycle(tripId) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   UX PRIMITIVES (Sprint 7: UX hardening) — toast notifications,
-   styled confirm dialog, and button loading states. Replaces all
-   native browser alert/confirm dialogs.
-   ═══════════════════════════════════════════════════════════════════ */
+/* toasts, a styled confirm dialog and button loading states. these replace the
+   native alert/confirm, which block the page and cannot be styled */
 function showToast(message, type) {
     if (!type) {
         const m = String(message).toLowerCase();
@@ -2111,9 +2101,7 @@ function setBtnLoading(btn, loading) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MOBILE SIDEBAR (Sprint 7: UX hardening)
-   ═══════════════════════════════════════════════════════════════════ */
+// mobile sidebar open/close
 function toggleSidebar(force) {
     const open = typeof force === "boolean" ? force : !document.body.classList.contains("sidebar-open");
     document.body.classList.toggle("sidebar-open", open);
@@ -2150,11 +2138,8 @@ function openNotification(id, type) {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   DRIVER POLICY ENGINE UI (Sprint 9: FR-15 / FR-16)
-   Travel rules (who may ride) + pricing rules (what the ride costs) —
-   composed by the driver, interpreted by the backend policy engine.
-   ═══════════════════════════════════════════════════════════════════ */
+/* driver policy screens. travel rules decide who is allowed to ride, pricing
+   rules decide what the seat costs. the backend policy engine reads them back */
 const TRAVEL_RULE_LABELS = {
     MIN_PASSENGER_REPUTATION: v => `Minimum passenger reputation ≥ ${v}`,
     SAME_DESTINATION_ONLY: () => "Passengers must share my destination",
@@ -2276,14 +2261,12 @@ function wirePolicyForms() {
     });
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   REALNESS PASS — autocomplete, smart defaults, greeting, € format,
-   payment visibility, reputation card & stats, driver route cockpit.
-   ═══════════════════════════════════════════════════════════════════ */
-// major cities only. the old list had "Messina Nord", which is a motorway exit rather
-// than a place and google cannot geocode it at all, and a bare "Villafranca" which
-// resolved to a town in northern italy 2500km away. every name here was checked
-// against the maps api and comes back with a sensible distance.
+/* place autocomplete, form defaults, euro formatting, the reputation card and the
+   driver route panel */
+
+/* major cities only. the old list had "Messina Nord", a motorway exit google cannot
+   geocode, and a bare "Villafranca" that resolved 2500km away. every name here was
+   checked against the maps api */
 const PLACE_SUGGESTIONS = [
     "Agrigento", "Bari", "Caltanissetta", "Catania", "Enna",
     "Marsala", "Messina", "Naples", "Palermo", "Ragusa",
@@ -2364,7 +2347,7 @@ function paymentForRequest(requestId) {
     return myPayments.find(p => p.rideRequestId === requestId);
 }
 
-/* ── Reputation card + role stats in Profile ── */
+// reputation card and the per-role stats on the profile page
 function tierProgress(score) {
     const tiers = [["STANDARD", 0, 4.0, "SILVER"], ["SILVER", 4.0, 4.5, "GOLD"], ["GOLD", 4.5, 4.8, "PREMIUM_PRICING"], ["PREMIUM_PRICING", 4.8, 5.0, null]];
     for (const [name, lo, hi, next] of tiers) {
@@ -2417,7 +2400,7 @@ function renderReputationCard(userDetails) {
         <div class="stats-grid">${stats.map(([v, l]) => `<div class="stat-box"><div class="stat-value">${v}</div><div class="stat-label">${l}</div></div>`).join("")}</div>`;
 }
 
-/* ── Driver cockpit: trip status + live route ── */
+// driver panel: trip status and the live route
 /**
  * Turns the planner's internal stop labels ("PICKUP(name) at Loc") into
  * passenger-friendly wording, highlighting only the rider's own stops.
@@ -2450,8 +2433,8 @@ function tripStatus(t) {
     const pax = t.passengers || [];
     const active = pax.filter(p => p.status === "PENDING" || p.status === "CONFIRMED");
     const pending = pax.filter(p => p.status === "PENDING").length;
-    // Completed bookings settle the status regardless of the scheduled departure
-    // (a driver may complete early; history must read as history).
+    /* completed bookings settle the status regardless of the scheduled departure: a driver
+       may complete early, and history must read as history */
     if (active.length === 0 && pax.some(p => p.status === "COMPLETED")) {
         return ["Completed", "trip-Completed"];
     }
